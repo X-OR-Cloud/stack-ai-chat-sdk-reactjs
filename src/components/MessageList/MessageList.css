@@ -1,0 +1,123 @@
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar */
+.message-list::-webkit-scrollbar {
+  width: 4px;
+}
+.message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.message-list::-webkit-scrollbar-thumb {
+  background: var(--sai-border);
+  border-radius: 4px;
+}
+
+/* ── Message row ─────────────────────────────────────────────────────────── */
+.message-row {
+  display: flex;
+  flex-direction: column;
+  animation: sai-fade-in 200ms ease;
+}
+
+.message-row.user {
+  align-items: flex-end;
+}
+
+.message-row.assistant {
+  align-items: flex-start;
+}
+
+/* ── Bubble ──────────────────────────────────────────────────────────────── */
+.message-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: var(--sai-radius);
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+  position: relative;
+}
+
+.message-row.user .message-bubble {
+  background-color: var(--sai-bubble-user-bg);
+  color: var(--sai-bubble-user-text);
+  border-bottom-right-radius: var(--sai-radius-xs);
+}
+
+.message-row.assistant .message-bubble {
+  background-color: var(--sai-bubble-agent-bg);
+  color: var(--sai-bubble-agent-text);
+  border-bottom-left-radius: var(--sai-radius-xs);
+}
+
+/* Failed state */
+.message-row.user .message-bubble.status-failed {
+  background-color: color-mix(in srgb, var(--sai-error) 80%, transparent);
+}
+
+/* ── Timestamp ───────────────────────────────────────────────────────────── */
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  padding: 0 4px;
+}
+
+.message-time {
+  font-size: 11px;
+  color: var(--sai-text-muted);
+}
+
+.message-status-icon {
+  font-size: 11px;
+  color: var(--sai-text-muted);
+}
+
+.message-status-icon.failed {
+  color: var(--sai-error);
+}
+
+/* ── Attachments in bubble ───────────────────────────────────────────────── */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.message-attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--sai-radius-sm);
+  background-color: rgba(0,0,0,0.12);
+  font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+}
+
+.message-attachment-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Image attachment preview */
+.message-attachment-image {
+  max-width: 200px;
+  max-height: 160px;
+  border-radius: var(--sai-radius-sm);
+  object-fit: cover;
+  margin-top: 6px;
+}

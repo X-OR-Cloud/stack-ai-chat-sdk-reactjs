@@ -1,0 +1,116 @@
+.chat-window {
+  position: fixed;
+  bottom: 92px;
+  width: 360px;
+  height: 560px;
+  max-height: calc(100vh - 120px);
+  z-index: var(--sai-z);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--sai-radius);
+  overflow: hidden;
+  background-color: var(--sai-bg);
+  box-shadow: var(--sai-shadow-lg);
+  border: 1px solid var(--sai-border);
+  animation: sai-fade-in 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chat-window.bottom-right {
+  right: 24px;
+}
+
+.chat-window.bottom-left {
+  left: 24px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background-color: var(--sai-primary);
+  color: var(--sai-primary-text);
+  flex-shrink: 0;
+}
+
+.chat-header__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-header__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.chat-header__subtitle {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* Override AgentStatus colors inside header */
+.chat-header .agent-status__label {
+  color: rgba(255,255,255,0.85);
+}
+.chat-header .agent-status__dot.online {
+  background-color: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74,222,128,0.3);
+}
+.chat-header .agent-status__dot.offline {
+  background-color: rgba(255,255,255,0.4);
+}
+
+.chat-header__right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-header__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--sai-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sai-primary-text);
+  opacity: 0.8;
+  transition: opacity var(--sai-transition), background-color var(--sai-transition);
+}
+
+.chat-header__btn:hover {
+  opacity: 1;
+  background-color: rgba(255,255,255,0.15);
+}
+
+.chat-header__btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Connecting overlay ──────────────────────────────────────────────────── */
+.chat-connecting {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--sai-text-muted);
+  font-size: 14px;
+}
+
+.chat-connecting__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--sai-border);
+  border-top-color: var(--sai-primary);
+  border-radius: 50%;
+  animation: sai-spin 0.8s linear infinite;
+}
+
+@keyframes sai-spin {
+  to { transform: rotate(360deg); }
+}

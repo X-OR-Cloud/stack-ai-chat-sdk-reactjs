@@ -1,0 +1,27 @@
+.agent-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--sai-radius-full);
+  flex-shrink: 0;
+  transition: background-color var(--sai-transition);
+}
+
+.agent-status__dot.online {
+  background-color: var(--sai-online);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sai-online) 30%, transparent);
+}
+
+.agent-status__dot.offline {
+  background-color: var(--sai-offline);
+}
+
+.agent-status__label {
+  font-size: 12px;
+  color: var(--sai-text-muted);
+}

@@ -1,0 +1,77 @@
+/* ── Light theme (default) ───────────────────────────────────────────────── */
+:host {
+  /* Brand */
+  --sai-primary: #0066FF;
+  --sai-primary-hover: #0052cc;
+  --sai-primary-text: #ffffff;
+
+  /* Surfaces */
+  --sai-bg: #ffffff;
+  --sai-surface: #f5f7fa;
+  --sai-surface-hover: #eef1f6;
+
+  /* Text */
+  --sai-text: #1a1a2e;
+  --sai-text-muted: #6b7280;
+  --sai-text-placeholder: #9ca3af;
+
+  /* Borders */
+  --sai-border: #e5e7eb;
+  --sai-border-focus: #0066FF;
+
+  /* Chat bubbles */
+  --sai-bubble-user-bg: #0066FF;
+  --sai-bubble-user-text: #ffffff;
+  --sai-bubble-agent-bg: #f0f2f5;
+  --sai-bubble-agent-text: #1a1a2e;
+
+  /* Status */
+  --sai-online: #22c55e;
+  --sai-offline: #9ca3af;
+  --sai-error: #ef4444;
+  --sai-warning: #f59e0b;
+
+  /* Shadows */
+  --sai-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --sai-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --sai-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
+
+  /* Layout */
+  --sai-radius: 12px;
+  --sai-radius-sm: 8px;
+  --sai-radius-xs: 4px;
+  --sai-radius-full: 9999px;
+
+  /* Transition */
+  --sai-transition: 200ms ease;
+
+  /* Z-index */
+  --sai-z: 999999;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+:host([data-theme="dark"]) {
+  --sai-primary: #3b82f6;
+  --sai-primary-hover: #2563eb;
+  --sai-primary-text: #ffffff;
+
+  --sai-bg: #1a1a2e;
+  --sai-surface: #16213e;
+  --sai-surface-hover: #0f3460;
+
+  --sai-text: #f1f5f9;
+  --sai-text-muted: #94a3b8;
+  --sai-text-placeholder: #64748b;
+
+  --sai-border: #2d3748;
+  --sai-border-focus: #3b82f6;
+
+  --sai-bubble-user-bg: #3b82f6;
+  --sai-bubble-user-text: #ffffff;
+  --sai-bubble-agent-bg: #2d3748;
+  --sai-bubble-agent-text: #f1f5f9;
+
+  --sai-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --sai-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --sai-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
