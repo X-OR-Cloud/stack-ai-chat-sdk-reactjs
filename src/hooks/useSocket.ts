@@ -36,6 +36,7 @@ export function useSocket() {
   const failMessage = useChatStore((s) => s.failMessage)
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
   const setPresence = useChatStore((s) => s.setPresence)
+  const setConversationId = useChatStore((s) => s.setConversationId)
 
   const connect = useCallback(() => {
     if (!config) return
@@ -70,10 +71,10 @@ export function useSocket() {
 
     socket.on('connect', () => {
       isConnectingRef.current = false
-      socket.emit('conversation:join', { conversationId: config.conversationId })
-      config.onConversationJoined?.(config.conversationId)
-      setPhase('chat')
       config.onConnected?.()
+      // Move to chat immediately — anonymous gets conversationId via presence:update,
+      // agent/user flow is handled the same way at connect time.
+      setPhase('chat')
     })
 
     socket.on('disconnect', (reason) => {
@@ -91,13 +92,22 @@ export function useSocket() {
     // ── Business events ──────────────────────────────────────────────────────
 
     socket.on('presence:update', (payload: PresenceUpdatePayload) => {
-      if (payload.type === 'agent' && payload.agentId) {
+      config.onPresenceUpdate?.(payload)
+      if (payload.type === 'anonymous' && payload.conversationId) {
+        // Anonymous token: server auto-creates conversation, sends conversationId here
+        setConversationId(payload.conversationId)
+        config.onConversationJoined?.(payload.conversationId)
+      } else if (payload.type === 'agent' && payload.agentId) {
         setPresence({
           agentId: payload.agentId,
           status: payload.status,
           lastSeen: payload.timestamp,
         })
       }
+    })
+
+    socket.on('message:error', (payload: { error: string }) => {
+      config.onError?.(payload.error)
     })
 
     socket.on('message:sent', (payload: MessageSentPayload) => {

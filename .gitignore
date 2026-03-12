@@ -1,4 +1,9 @@
 node_modules/
 dist/
+demo-dist/
 .DS_Store
 *.local
+.scripts
+.scripts/*
+scripts
+scripts/*

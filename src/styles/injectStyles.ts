@@ -129,6 +129,17 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .chat-window.bottom-right { right: 24px; }
 .chat-window.bottom-left  { left: 24px; }
 
+/* Expanded mode — PC */
+.chat-window.expanded { width: 50vw; height: 80vh; max-height: 80vh; bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; transition: width 200ms ease, height 200ms ease; }
+.chat-window.expanded.bottom-right { right: 0; }
+.chat-window.expanded.bottom-left  { left: 0; }
+
+/* Expanded mode — Mobile */
+@media (max-width: 640px) {
+  .chat-window { width: calc(100vw - 24px); }
+  .chat-window.expanded { width: 100vw; height: 100vh; max-height: 100vh; bottom: 0; right: 0 !important; left: 0 !important; border-radius: 0; }
+}
+
 /* Header */
 .chat-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -214,6 +225,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
   font-size: 14px; line-height: 1.55;
   word-break: break-word; white-space: pre-wrap; position: relative;
 }
+.message-row.assistant .message-bubble { white-space: normal; }
 .message-row.user      .message-bubble { background-color: var(--sai-bubble-user-bg);  color: var(--sai-bubble-user-text);  border-bottom-right-radius: var(--sai-radius-xs); }
 .message-row.assistant .message-bubble { background-color: var(--sai-bubble-agent-bg); color: var(--sai-bubble-agent-text); border-bottom-left-radius: var(--sai-radius-xs); }
 .message-row.user .message-bubble.status-failed { background-color: color-mix(in srgb, var(--sai-error) 80%, transparent); }
@@ -226,7 +238,39 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .message-attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .message-attachment-image { max-width: 200px; max-height: 160px; border-radius: var(--sai-radius-sm); object-fit: cover; margin-top: 6px; }
 
+/* ── Markdown body (agent messages) ────────────────────────────────────── */
+.md-body { display: flex; flex-direction: column; gap: 6px; }
+.md-body .md-p { margin: 0; }
+.md-body .md-h1, .md-body .md-h2, .md-body .md-h3,
+.md-body .md-h4, .md-body .md-h5, .md-body .md-h6 { margin: 4px 0 2px; font-weight: 700; line-height: 1.3; }
+.md-body .md-h1 { font-size: 1.2em; }
+.md-body .md-h2 { font-size: 1.1em; }
+.md-body .md-h3 { font-size: 1em; }
+.md-body .md-ul, .md-body .md-ol { margin: 2px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+.md-body .md-ul li, .md-body .md-ol li { margin: 0; }
+.md-body .md-blockquote { margin: 2px 0; padding: 4px 10px; border-left: 3px solid currentColor; opacity: 0.75; font-style: italic; }
+.md-body .md-hr { border: none; border-top: 1px solid currentColor; opacity: 0.25; margin: 4px 0; }
+.md-body .md-code-inline { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88em; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,0.12); }
+.message-row.user .md-code-inline { background: rgba(255,255,255,0.2); }
+.md-body .md-code-block { margin: 4px 0; padding: 10px 12px; border-radius: var(--sai-radius-sm); background: rgba(0,0,0,0.15); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+.md-body .md-link { color: inherit; text-decoration: underline; opacity: 0.9; }
+.md-body .md-link:hover { opacity: 1; }
+
 /* ── MessageInput ───────────────────────────────────────────────────────── */
+/* ── Reference chip ─────────────────────────────────────────────────────── */
+.reference-chip {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 6px 10px; border-radius: var(--sai-radius-sm);
+  background: color-mix(in srgb, var(--sai-primary) 10%, transparent);
+  border-left: 3px solid var(--sai-primary);
+  font-size: 12px; color: var(--sai-text-muted);
+}
+.reference-chip__icon { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; color: var(--sai-primary); opacity: 0.7; }
+.reference-chip__text { flex: 1; line-height: 1.4; word-break: break-word; font-style: italic; }
+.reference-chip__remove { flex-shrink: 0; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 3px; color: var(--sai-text-muted); opacity: 0.6; transition: opacity var(--sai-transition); margin-top: 1px; }
+.reference-chip__remove:hover { opacity: 1; color: var(--sai-error); }
+.reference-chip__remove svg { width: 10px; height: 10px; }
+
 .message-input-area { border-top: 1px solid var(--sai-border); background-color: var(--sai-bg); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
 .attachment-preview-bar { display: flex; flex-wrap: wrap; gap: 8px; }
 .attachment-preview-item { position: relative; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: var(--sai-radius-sm); background-color: var(--sai-surface); border: 1px solid var(--sai-border); font-size: 12px; color: var(--sai-text); max-width: 160px; }
@@ -268,4 +312,15 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .agent-status__dot.online  { background-color: var(--sai-online); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sai-online) 30%, transparent); }
 .agent-status__dot.offline { background-color: var(--sai-offline); }
 .agent-status__label { font-size: 12px; color: var(--sai-text-muted); }
+.agent-status__bullet { font-size: 12px; color: var(--sai-text-muted); line-height: 1; }
+.agent-status__conv-id { font-size: 11px; color: var(--sai-text-muted); font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.04em; }
+.agent-status__copy { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border-radius: 3px; color: var(--sai-text-muted); opacity: 0.7; transition: opacity var(--sai-transition), color var(--sai-transition); }
+.agent-status__copy:hover { opacity: 1; }
+.agent-status__copy.copied { color: var(--sai-online); opacity: 1; }
+.agent-status__copy svg { width: 12px; height: 12px; }
+.chat-header .agent-status__bullet { color: rgba(255,255,255,0.5); }
+.chat-header .agent-status__conv-id { color: rgba(255,255,255,0.7); }
+.chat-header .agent-status__copy { color: rgba(255,255,255,0.7); }
+.chat-header .agent-status__copy:hover { color: #fff; opacity: 1; }
+.chat-header .agent-status__copy.copied { color: #4ade80; }
 `

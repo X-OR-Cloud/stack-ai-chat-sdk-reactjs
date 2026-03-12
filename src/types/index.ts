@@ -61,7 +61,8 @@ export interface SDKConfig {
   // Connection (required)
   wsUrl: string
   token: string
-  conversationId: string
+  /** Optional: pass known conversationId to resume. Anonymous flow will get it from server via presence:update. */
+  conversationId?: string
   /** Socket.IO server path. Default: '/ws/chat' */
   socketPath?: string
 
@@ -91,16 +92,23 @@ export interface SDKConfig {
   onError?: (message: string) => void
   onMessage?: (message: Message) => void
   onFormSubmit?: (data: Record<string, string>) => void
+  onPresenceUpdate?: (payload: PresenceUpdatePayload) => void
 }
 
 // ─── Socket.IO payloads ──────────────────────────────────────────────────────
 
 export interface PresenceUpdatePayload {
-  type: 'agent' | 'user'
+  type: 'agent' | 'user' | 'anonymous'
   agentId?: string
   userId?: string | null
   conversationId?: string
   status: 'online' | 'offline'
+  timestamp: string
+}
+
+export interface MessageErrorPayload {
+  success: false
+  error: string
   timestamp: string
 }
 

@@ -1,4 +1,5 @@
 import type { Message, AttachmentItem } from '../../types'
+import { renderMarkdown } from '../../utils/renderMarkdown'
 
 function formatTime(iso?: string): string {
   if (!iso) return ''
@@ -46,7 +47,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={`message-row ${message.role}`}>
       <div className={`message-bubble status-${message.status}`}>
-        {message.content}
+        {isUser
+          ? message.content
+          : <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+        }
 
         {message.attachments.length > 0 && (
           <div className="message-attachments">

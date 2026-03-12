@@ -1,10 +1,21 @@
 import { useState, useRef } from 'react'
 import { StackAIChat } from '../src/index'
-import type { FieldConfig } from '../src/types'
+import type { FieldConfig, PresenceUpdatePayload } from '../src/types'
+import xorStackAiLogo from './xor-stack-ai.png'
 
 const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/ws/chat'
 const DEFAULT_TOKEN = ''
-const DEFAULT_CONVERSATION_ID = '69b1897d7c01771e6fce5198'
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
+}
 
 interface FieldRow {
   id: number
@@ -25,7 +36,6 @@ const DEFAULT_FIELDS: FieldRow[] = [
 export function DemoApp() {
   const [wsUrl, setWsUrl]               = useState(DEFAULT_WS_URL)
   const [token, setToken]               = useState(DEFAULT_TOKEN)
-  const [conversationId, setConversationId] = useState(DEFAULT_CONVERSATION_ID)
   const [title, setTitle]               = useState('Hỗ trợ khách hàng')
   const [subtitle, setSubtitle]         = useState('Thường trả lời trong vài phút')
   const [position, setPosition]         = useState<'bottom-right' | 'bottom-left'>('bottom-right')
@@ -37,6 +47,8 @@ export function DemoApp() {
   const [initialized, setInitialized]   = useState(false)
   const [log, setLog]                   = useState<string[]>([])
   const logRef = useRef<HTMLDivElement>(null)
+
+  const tokenInfo = decodeJwtPayload(token)
 
   function addLog(msg: string) {
     setLog((prev) => {
@@ -54,8 +66,8 @@ export function DemoApp() {
       return
     }
 
-    if (!wsUrl || !token || !conversationId) {
-      alert('Vui lòng điền đủ WS URL, Token và Conversation ID')
+    if (!wsUrl || !token) {
+      alert('Vui lòng điền đủ WS URL và Token')
       return
     }
 
@@ -66,7 +78,6 @@ export function DemoApp() {
     StackAIChat.init({
       wsUrl,
       token,
-      conversationId,
       title,
       subtitle,
       position,
@@ -75,7 +86,8 @@ export function DemoApp() {
       attachments: { enabled: attachEnabled, maxSize: 5, accept: ['image/*', 'application/pdf'], maxCount: 5 },
       theme: { mode: themeMode, primaryColor },
       onConnected:          () => addLog('✅ Socket connected'),
-      onConversationJoined: (id) => addLog(`📨 emit conversation:join → ${id}`),
+      onConversationJoined: (id) => addLog(`📨 Conversation ready → ${id}`),
+      onPresenceUpdate:     (p: PresenceUpdatePayload) => addLog(`👁 presence:update → ${JSON.stringify(p)}`),
       onDisconnected:       () => addLog('🔌 Socket disconnected'),
       onError:              (msg) => addLog(`❌ Error: ${msg}`),
       onOpen:         () => addLog('📂 Widget opened'),
@@ -108,7 +120,7 @@ export function DemoApp() {
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       <aside className="demo-sidebar">
         <div className="demo-logo-banner">
-          <img src="./xor-stack-ai.png" alt="X-OR Stack AI" className="demo-logo-banner__img" />
+          <img src={xorStackAiLogo} alt="X-OR Stack AI" className="demo-logo-banner__img" />
         </div>
         <div className="demo-logo-divider" />
         <div className="demo-logo">
@@ -129,10 +141,27 @@ export function DemoApp() {
             <input className="demo-input" value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="wss://..." />
 
             <label className="demo-label">Token <span className="demo-required">*</span></label>
-            <input className="demo-input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Bearer token" />
+            <input className="demo-input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token" />
 
-            <label className="demo-label">Conversation ID <span className="demo-required">*</span></label>
-            <input className="demo-input" value={conversationId} onChange={(e) => setConversationId(e.target.value)} placeholder="69b1897d..." />
+            {tokenInfo && (
+              <div className="demo-token-info">
+                <div className="demo-token-info__row">
+                  <span className="demo-token-info__key">type</span>
+                  <span className={`demo-token-info__badge demo-token-info__badge--${String(tokenInfo.type ?? 'unknown')}`}>
+                    {String(tokenInfo.type ?? 'unknown')}
+                  </span>
+                </div>
+                {!!tokenInfo.sub    && <div className="demo-token-info__row"><span className="demo-token-info__key">sub</span><span className="demo-token-info__val">{String(tokenInfo.sub)}</span></div>}
+                {!!tokenInfo.anonymousId && <div className="demo-token-info__row"><span className="demo-token-info__key">anonymousId</span><span className="demo-token-info__val">{String(tokenInfo.anonymousId)}</span></div>}
+                {!!tokenInfo.agentId && <div className="demo-token-info__row"><span className="demo-token-info__key">agentId</span><span className="demo-token-info__val">{String(tokenInfo.agentId)}</span></div>}
+                {!!tokenInfo.orgId   && <div className="demo-token-info__row"><span className="demo-token-info__key">orgId</span><span className="demo-token-info__val">{String(tokenInfo.orgId)}</span></div>}
+                {!!tokenInfo.exp     && <div className="demo-token-info__row"><span className="demo-token-info__key">exp</span><span className="demo-token-info__val">{new Date(Number(tokenInfo.exp) * 1000).toLocaleString('vi-VN')}</span></div>}
+              </div>
+            )}
+            {token && !tokenInfo && (
+              <div className="demo-token-info demo-token-info--error">⚠ Token không hợp lệ</div>
+            )}
+
           </section>
 
           {/* UI */}
@@ -245,7 +274,10 @@ export function DemoApp() {
       <main className="demo-main">
         <div className="demo-preview-header">
           <h2>Preview</h2>
-          <p>Widget sẽ xuất hiện ở góc {position === 'bottom-right' ? 'phải' : 'trái'} dưới màn hình sau khi khởi tạo.</p>
+          <p>
+            Widget xuất hiện góc {position === 'bottom-right' ? 'phải' : 'trái'} dưới màn hình.
+            {initialized && <> <strong>Bôi đen đoạn văn bản</strong> bất kỳ bên dưới để gửi tham chiếu vào chat.</>}
+          </p>
         </div>
 
         <div className="demo-mockup">
@@ -256,20 +288,58 @@ export function DemoApp() {
             </div>
             <div className="demo-mockup__content">
               <div className="demo-mockup__page">
-                <div className="demo-page-skeleton">
-                  <div className="skel skel--nav" />
-                  <div className="skel skel--hero" />
-                  <div className="skel-row">
-                    <div className="skel skel--card" />
-                    <div className="skel skel--card" />
-                    <div className="skel skel--card" />
-                  </div>
+                <div
+                  className="demo-sample-page"
+                  onMouseUp={() => {
+                    if (!initialized) return
+                    const sel = window.getSelection()
+                    const text = sel?.toString().trim()
+                    if (text) {
+                      StackAIChat.setReference(text)
+                      StackAIChat.open()
+                      addLog(`📌 Reference set: "${text.slice(0, 50)}${text.length > 50 ? '…' : ''}"`)
+                      sel?.removeAllRanges()
+                    }
+                  }}
+                >
+                  <nav className="demo-page__nav">
+                    <span className="demo-page__brand">⚡ Your Company</span>
+                    <span className="demo-page__navlinks">Sản phẩm · Giá cả · Tài liệu · Blog</span>
+                  </nav>
+
+                  <section className="demo-page__hero">
+                    <h1>Nền tảng AI thông minh cho doanh nghiệp</h1>
+                    <p>Tự động hóa quy trình, nâng cao trải nghiệm khách hàng và tăng hiệu suất vận hành với giải pháp AI toàn diện của chúng tôi.</p>
+                    <div className="demo-page__cta-row">
+                      <button className="demo-page__cta demo-page__cta--primary">Dùng thử miễn phí</button>
+                      <button className="demo-page__cta demo-page__cta--ghost">Xem demo</button>
+                    </div>
+                  </section>
+
+                  <section className="demo-page__cards">
+                    <div className="demo-page__card">
+                      <div className="demo-page__card-icon">🤖</div>
+                      <h3>AI Chatbot</h3>
+                      <p>Triển khai chatbot thông minh hỗ trợ khách hàng 24/7, tích hợp đa kênh và xử lý ngôn ngữ tự nhiên tiếng Việt.</p>
+                    </div>
+                    <div className="demo-page__card">
+                      <div className="demo-page__card-icon">📊</div>
+                      <h3>Phân tích dữ liệu</h3>
+                      <p>Dashboard thời gian thực với báo cáo chi tiết về hiệu suất, xu hướng khách hàng và cơ hội tăng trưởng doanh thu.</p>
+                    </div>
+                    <div className="demo-page__card">
+                      <div className="demo-page__card-icon">🔗</div>
+                      <h3>Tích hợp linh hoạt</h3>
+                      <p>Kết nối dễ dàng với CRM, ERP và hơn 200 ứng dụng phổ biến thông qua API RESTful và webhook tiêu chuẩn.</p>
+                    </div>
+                  </section>
+
+                  {!initialized && (
+                    <div className="demo-mockup__hint">
+                      ← Điền thông tin và nhấn <strong>Khởi tạo Widget</strong>
+                    </div>
+                  )}
                 </div>
-                {!initialized && (
-                  <div className="demo-mockup__hint">
-                    ← Điền thông tin và nhấn <strong>Khởi tạo Widget</strong>
-                  </div>
-                )}
               </div>
             </div>
           </div>

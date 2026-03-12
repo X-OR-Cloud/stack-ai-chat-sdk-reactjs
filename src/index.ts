@@ -58,6 +58,14 @@ export const StackAIChat = {
     currentConfig?.onClose?.()
   },
 
+  setReference(text: string): void {
+    useChatStore.getState().setReference(text)
+  },
+
+  clearReference(): void {
+    useChatStore.getState().setReference(null)
+  },
+
   updateConfig(partial: Partial<SDKConfig>): void {
     if (!root || !currentConfig) {
       console.warn('[StackAIChat] Not initialized.')

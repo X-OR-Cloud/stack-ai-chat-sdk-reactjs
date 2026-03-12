@@ -1,6 +1,9 @@
 import { useState, useRef, KeyboardEvent, ChangeEvent } from 'react'
 import type { AttachmentsConfig, AttachmentItem } from '../../types'
 import { filesToBase64, formatFileSize } from '../../utils/fileToBase64'
+import { useChatStore } from '../../store/chatStore'
+
+const REFERENCE_MAX_LEN = 80
 
 interface MessageInputProps {
   onSend: (content: string, attachments: AttachmentItem[]) => void
@@ -20,10 +23,19 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const reference = useChatStore((s) => s.reference)
+  const setReference = useChatStore((s) => s.setReference)
+
   const attachEnabled = attachmentsConfig?.enabled ?? false
-  const maxSize = (attachmentsConfig?.maxSize ?? 5) * 1024 * 1024 // bytes
+  const maxSize = (attachmentsConfig?.maxSize ?? 5) * 1024 * 1024
   const maxCount = attachmentsConfig?.maxCount ?? 5
   const accept = attachmentsConfig?.accept?.join(',') ?? '*/*'
+
+  const shortRef = reference
+    ? reference.length > REFERENCE_MAX_LEN
+      ? reference.slice(0, REFERENCE_MAX_LEN) + '…'
+      : reference
+    : null
 
   function autoResize() {
     const el = textareaRef.current
@@ -49,32 +61,32 @@ export function MessageInput({
     if (!trimmed && attachments.length === 0) return
     if (disabled || isUploading) return
 
-    onSend(trimmed, attachments)
+    // Prepend reference as quote if present
+    const content = reference
+      ? `> ${reference}\n\n${trimmed}`
+      : trimmed
+
+    onSend(content, attachments)
     setText('')
     setAttachments([])
+    setReference(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
-
-    // Reset input so same file can be re-selected
     e.target.value = ''
     setUploadError(null)
 
-    // Check total count
     if (attachments.length + files.length > maxCount) {
       setUploadError(`Tối đa ${maxCount} file mỗi tin nhắn`)
       return
     }
 
-    // Check sizes
     const oversized = files.find((f) => f.size > maxSize)
     if (oversized) {
-      setUploadError(
-        `File "${oversized.name}" vượt quá ${attachmentsConfig?.maxSize ?? 5}MB`
-      )
+      setUploadError(`File "${oversized.name}" vượt quá ${attachmentsConfig?.maxSize ?? 5}MB`)
       return
     }
 
@@ -97,6 +109,28 @@ export function MessageInput({
 
   return (
     <div className="message-input-area">
+      {/* Reference chip */}
+      {shortRef && (
+        <div className="reference-chip">
+          <svg className="reference-chip__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M6 3H3a1 1 0 0 0-1 1v3c0 3.3 2.7 5 4 5" />
+            <path d="M13 3h-3a1 1 0 0 0-1 1v3c0 3.3 2.7 5 4 5" />
+          </svg>
+          <span className="reference-chip__text">{shortRef}</span>
+          <button
+            className="reference-chip__remove"
+            onClick={() => setReference(null)}
+            title="Bỏ tham chiếu"
+            type="button"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="4" y1="4" x2="12" y2="12" />
+              <line x1="12" y1="4" x2="4" y2="12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="attachment-preview-bar">
@@ -134,7 +168,6 @@ export function MessageInput({
       )}
 
       <div className="message-input-row">
-        {/* Attach button */}
         {attachEnabled && (
           <>
             <input
@@ -170,7 +203,6 @@ export function MessageInput({
           disabled={disabled}
         />
 
-        {/* Send button */}
         <button
           className="input-action-btn send"
           type="button"
