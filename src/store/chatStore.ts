@@ -50,7 +50,7 @@ const initialPresence: AgentPresence = {
   lastSeen: null,
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>()((set) => ({
   config: null,
   isOpen: false,
   phase: 'idle',

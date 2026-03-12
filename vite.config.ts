@@ -20,12 +20,13 @@ export default defineConfig({
       fileName: (format) => format === 'es' ? 'index.js' : 'index.umd.cjs',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'react/jsx-runtime'],
+      external: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
       output: {
         exports: 'named',
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
+          'react-dom/client': 'ReactDOM',
           'react/jsx-runtime': 'ReactJSXRuntime',
         },
       },
