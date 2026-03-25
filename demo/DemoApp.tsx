@@ -93,7 +93,10 @@ export function DemoApp() {
       onOpen:         () => addLog('📂 Widget opened'),
       onClose:        () => addLog('📁 Widget closed'),
       onFormSubmit:   (data) => addLog(`📋 Form submitted: ${JSON.stringify(data)}`),
-      onMessage:      (msg) => addLog(`💬 New message [${msg.role}]: ${msg.content.slice(0, 60)}`),
+      onMessage:      (msg) => {
+        const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} source(s)` : ''
+        addLog(`💬 New message [${msg.role}]: ${msg.content.slice(0, 60)}${sourcesInfo}`)
+      },
     })
 
     setInitialized(true)

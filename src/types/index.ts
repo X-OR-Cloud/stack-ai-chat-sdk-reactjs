@@ -126,10 +126,25 @@ export interface AgentTypingPayload {
   timestamp: string
 }
 
+// ─── Sources (from server message:new) ───────────────────────────────────────
+
+export type SourceType = 'rag' | 'web' | 'tool' | 'memory'
+
+export interface MessageSource {
+  type: SourceType
+  content: string
+  score?: number        // relevance score (rag/web)
+  collectionId?: string // rag only
+  url?: string          // web only
+  toolName?: string     // tool only
+  label?: string        // optional display name
+}
+
 // ─── Messages ────────────────────────────────────────────────────────────────
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
+export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking'
 
 export interface Message {
   /** Local temp id before server confirms */
@@ -138,11 +153,10 @@ export interface Message {
   conversationId?: string
   role: MessageRole
   content: string
-  type: 'text'
+  type: MessageType
   status: MessageStatus
   attachments: AttachmentItem[]
-  toolCalls: unknown[]
-  toolResults: unknown[]
+  sources: MessageSource[]
   timestamp?: string
 }
 

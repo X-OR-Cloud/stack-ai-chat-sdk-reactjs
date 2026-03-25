@@ -37,6 +37,7 @@ interface ChatState {
   setReference: (text: string | null) => void
   setUserFields: (fields: Record<string, string>) => void
   addMessage: (message: Message) => void
+  prependMessages: (messages: Message[]) => void
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
@@ -84,6 +85,9 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
+
+  prependMessages: (messages) =>
+    set((state) => ({ messages: [...messages, ...state.messages] })),
 
   confirmMessage: (localId, messageId, timestamp) =>
     set((state) => ({

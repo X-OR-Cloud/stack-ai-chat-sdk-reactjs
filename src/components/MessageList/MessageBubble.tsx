@@ -1,5 +1,6 @@
 import type { Message, AttachmentItem } from '../../types'
 import { renderMarkdown } from '../../utils/renderMarkdown'
+import { SourcesPanel } from './SourcesPanel'
 
 function formatTime(iso?: string): string {
   if (!iso) return ''
@@ -60,6 +61,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
       </div>
+
+      {!isUser && message.sources.length > 0 && (
+        <SourcesPanel sources={message.sources} />
+      )}
 
       <div className={`message-meta ${isUser ? '' : ''}`}>
         <span className="message-time">{formatTime(message.timestamp)}</span>

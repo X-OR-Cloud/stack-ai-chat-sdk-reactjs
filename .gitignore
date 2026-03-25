@@ -7,3 +7,5 @@ demo-dist/
 .scripts/*
 scripts
 scripts/*
+test
+test/*
