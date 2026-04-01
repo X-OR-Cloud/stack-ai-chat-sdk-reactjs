@@ -199,7 +199,7 @@ export function MessageInput({
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder="Nhập tin nhắn... (Enter để gửi)"
+          placeholder="Nhập tin nhắn..."
           disabled={disabled}
         />
 
