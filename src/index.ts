@@ -6,7 +6,7 @@ import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
 import type { SDKConfig } from './types'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, Message } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null
@@ -28,7 +28,7 @@ export const StackAIChat = {
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       : themeMode
 
-    const { hostEl: host, mountPoint } = createShadowHost(initialTheme)
+    const { hostEl: host, mountPoint } = createShadowHost(initialTheme, config.customStyles)
     hostEl = host
 
     // Apply custom CSS variables if provided

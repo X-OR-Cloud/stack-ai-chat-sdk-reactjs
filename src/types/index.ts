@@ -53,6 +53,21 @@ export interface ThemeConfig {
   borderRadius?: string
 }
 
+// ─── Custom Styles ──────────────────────────────────────────────────────────
+
+export interface CustomStylesConfig {
+  chatButton?: string
+  chatWindow?: string
+  chatHeader?: string
+  messageList?: string
+  messageBubble?: string
+  messageInput?: string
+  preChatForm?: string
+  typingIndicator?: string
+  /** Arbitrary CSS / CSS variable overrides */
+  global?: string
+}
+
 // ─── SDK Config ──────────────────────────────────────────────────────────────
 
 export type Position = 'bottom-right' | 'bottom-left'
@@ -83,6 +98,18 @@ export interface SDKConfig {
   // Theme
   theme?: ThemeConfig
 
+  // Visible message types — which action types from WS to render in the chat box.
+  // Default: ['message']
+  visibleMessageTypes?: MessageType[]
+
+  // Hidden content patterns — regex patterns to filter out messages by content.
+  // Useful when server sends internal messages (e.g. tool calls) with type: 'message'.
+  // Default: none. Example: [/^🧠\s?\*\*Knowledge Search\*\*/, /^Retrieved \d+ knowledge chunk/, /^No relevant knowledge found/]
+  hiddenPatterns?: RegExp[]
+
+  // Custom styles — per-component CSS overrides injected into Shadow DOM
+  customStyles?: CustomStylesConfig
+
   // Callbacks
   onOpen?: () => void
   onClose?: () => void
@@ -91,6 +118,8 @@ export interface SDKConfig {
   onDisconnected?: () => void
   onError?: (message: string) => void
   onMessage?: (message: Message) => void
+  /** Debug: raw WebSocket payload before filtering. Useful for inspecting server data. */
+  onRawMessage?: (payload: Record<string, unknown>) => void
   onFormSubmit?: (data: Record<string, string>) => void
   onPresenceUpdate?: (payload: PresenceUpdatePayload) => void
 }
@@ -144,7 +173,7 @@ export interface MessageSource {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking'
+export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice'
 
 export interface Message {
   /** Local temp id before server confirms */
@@ -174,8 +203,3 @@ export type ChatPhase =
   | 'connecting'  // socket connecting
   | 'chat'        // connected, chatting
 
-export interface AgentPresence {
-  agentId: string | null
-  status: 'online' | 'offline'
-  lastSeen: string | null
-}

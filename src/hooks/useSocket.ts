@@ -42,13 +42,18 @@ interface ServerMessage {
   sources?: MessageSource[]
 }
 
+function isHiddenByPattern(content: string | undefined, patterns: RegExp[]): boolean {
+  if (!content || !patterns.length) return false
+  return patterns.some((re) => re.test(content))
+}
+
 function mapServerMessage(payload: ServerMessage): Message {
   return {
     messageId: payload._id ?? payload.messageId,
     conversationId: payload.conversationId,
     role: payload.role,
     content: payload.content ?? '',
-    type: 'message',
+    type: (payload.type as Message['type']) || 'message',
     status: 'sent',
     attachments: payload.attachments ?? [],
     sources: payload.sources ?? [],
@@ -67,21 +72,23 @@ export function useSocket() {
   const confirmMessage = useChatStore((s) => s.confirmMessage)
   const failMessage = useChatStore((s) => s.failMessage)
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
-  const setPresence = useChatStore((s) => s.setPresence)
   const setConversationId = useChatStore((s) => s.setConversationId)
   const conversationId = useChatStore((s) => s.conversationId)
 
   const loadHistory = useCallback((socket: Socket, convId: string) => {
+    const allowedTypes = config?.visibleMessageTypes ?? ['message']
+    const hiddenPatterns = config?.hiddenPatterns ?? []
+
     socket.emit('conversation:history', { conversationId: convId, limit: 50 }, (res: {
       success: boolean
       data?: ServerMessage[]
     }) => {
       if (res.success && res.data?.length) {
-        // Filter chỉ lấy message/notice hiển thị với user
         const messages = res.data
-          .filter((m) => !m.type || m.type === 'message')
+          .filter((m) => !m.type || allowedTypes.includes(m.type as any))
           .filter((m) => m.role === 'user' || m.role === 'assistant')
           .filter((m) => !m.skipAgent)
+          .filter((m) => !isHiddenByPattern(m.content, hiddenPatterns))
           .map((m) => {
             const mapped = mapServerMessage(m)
             if (mapped.messageId) seenIdsRef.current.add(mapped.messageId)
@@ -90,7 +97,7 @@ export function useSocket() {
         if (messages.length) prependMessages(messages)
       }
     })
-  }, [prependMessages])
+  }, [config, prependMessages])
 
   const connect = useCallback(() => {
     if (!config) return
@@ -166,12 +173,6 @@ export function useSocket() {
         setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
-      } else if (payload.type === 'agent' && payload.agentId) {
-        setPresence({
-          agentId: payload.agentId,
-          status: payload.status,
-          lastSeen: payload.timestamp,
-        })
       }
     })
 
@@ -194,6 +195,9 @@ export function useSocket() {
     })
 
     socket.on('message:new', (payload: ServerMessage) => {
+      // Debug: emit raw payload for inspection
+      config.onRawMessage?.(payload as unknown as Record<string, unknown>)
+
       // 1. Dedup
       const id = payload._id ?? payload.messageId
       if (id) {
@@ -203,7 +207,9 @@ export function useSocket() {
 
       // 2. Skip non-user-visible content
       if (payload.role === 'assistant' && payload.skipAgent) return
-      if (payload.type && payload.type !== 'message') return
+      const allowedTypes = config?.visibleMessageTypes ?? ['message']
+      if (payload.type && !allowedTypes.includes(payload.type as any)) return
+      if (isHiddenByPattern(payload.content, config?.hiddenPatterns ?? [])) return
 
       // 3. Process
       if (payload.role === 'assistant') {
@@ -216,7 +222,7 @@ export function useSocket() {
       }
       // user messages từ server (echo) không cần add lại vì đã có optimistic
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setPresence, setConversationId, conversationId, loadHistory])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, conversationId, loadHistory])
 
   const disconnect = useCallback(() => {
     isConnectingRef.current = false

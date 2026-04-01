@@ -381,3 +381,48 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 .demo-token-info__badge--user      { background: #065f46; color: #d1fae5; }
 .demo-token-info__badge--agent     { background: #7c3aed; color: #ede9fe; }
 .demo-token-info__badge--unknown   { background: #374151; color: #9ca3af; }
+
+/* ── Visible message types chips ─────────────────────────────── */
+.demo-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0 0 8px;
+}
+.demo-type-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.demo-toggle--chip {
+  cursor: pointer;
+}
+.demo-toggle--chip input { display: none; }
+.demo-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-muted);
+  transition: all 0.15s;
+  cursor: pointer;
+  user-select: none;
+}
+.demo-chip--active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+/* ── Custom styles textarea ──────────────────────────────────── */
+.demo-textarea {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 80px;
+  white-space: pre;
+  tab-size: 2;
+}

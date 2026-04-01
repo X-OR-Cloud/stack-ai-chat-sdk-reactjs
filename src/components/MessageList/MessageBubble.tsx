@@ -42,12 +42,27 @@ interface MessageBubbleProps {
   message: Message
 }
 
+const TYPE_LABELS: Record<string, { icon: string; label: string }> = {
+  thinking:    { icon: '💭', label: 'Thinking' },
+  tool_use:    { icon: '🔧', label: 'Tool Call' },
+  tool_result: { icon: '📋', label: 'Tool Result' },
+  notice:      { icon: 'ℹ️', label: 'Notice' },
+  system:      { icon: '⚙️', label: 'System' },
+}
+
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const typeInfo = message.type !== 'message' ? TYPE_LABELS[message.type] : null
 
   return (
     <div className={`message-row ${message.role}`}>
-      <div className={`message-bubble status-${message.status}`}>
+      <div className={`message-bubble status-${message.status}${typeInfo ? ` message-bubble--${message.type}` : ''}`}>
+        {typeInfo && (
+          <div className="message-type-badge">
+            <span className="message-type-badge__icon">{typeInfo.icon}</span>
+            <span className="message-type-badge__label">{typeInfo.label}</span>
+          </div>
+        )}
         {isUser
           ? message.content
           : <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />

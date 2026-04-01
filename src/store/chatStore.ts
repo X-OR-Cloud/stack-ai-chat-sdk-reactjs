@@ -3,7 +3,6 @@ import type {
   SDKConfig,
   ChatPhase,
   Message,
-  AgentPresence,
 } from '../types'
 
 interface ChatState {
@@ -19,7 +18,6 @@ interface ChatState {
   conversationId: string | null
   messages: Message[]
   isAgentTyping: boolean
-  presence: AgentPresence
 
   // Reference quote injected by host webapp
   reference: string | null
@@ -41,14 +39,7 @@ interface ChatState {
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
-  setPresence: (presence: Partial<AgentPresence>) => void
   reset: () => void
-}
-
-const initialPresence: AgentPresence = {
-  agentId: null,
-  status: 'offline',
-  lastSeen: null,
 }
 
 export const useChatStore = create<ChatState>()((set) => ({
@@ -59,7 +50,6 @@ export const useChatStore = create<ChatState>()((set) => ({
   conversationId: null,
   messages: [],
   isAgentTyping: false,
-  presence: initialPresence,
   reference: null,
   userFields: {},
 
@@ -107,9 +97,6 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
-  setPresence: (presence) =>
-    set((state) => ({ presence: { ...state.presence, ...presence } })),
-
   reset: () =>
     set({
       isOpen: false,
@@ -118,7 +105,6 @@ export const useChatStore = create<ChatState>()((set) => ({
       conversationId: null,
       messages: [],
       isAgentTyping: false,
-      presence: initialPresence,
       reference: null,
       userFields: {},
     }),

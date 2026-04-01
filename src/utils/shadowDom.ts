@@ -1,6 +1,7 @@
 import { SDK_STYLES } from '../styles/injectStyles'
+import type { CustomStylesConfig } from '../types'
 
-export function createShadowHost(themeAttr?: string): {
+export function createShadowHost(themeAttr?: string, customStyles?: CustomStylesConfig): {
   hostEl: HTMLElement
   shadowRoot: ShadowRoot
   mountPoint: HTMLElement
@@ -17,11 +18,36 @@ export function createShadowHost(themeAttr?: string): {
   styleEl.textContent = SDK_STYLES
   shadowRoot.appendChild(styleEl)
 
+  // Inject custom styles after defaults so they can override
+  if (customStyles) {
+    const customCss = buildCustomCss(customStyles)
+    if (customCss) {
+      const customStyleEl = document.createElement('style')
+      customStyleEl.id = 'sai-custom-styles'
+      customStyleEl.textContent = customCss
+      shadowRoot.appendChild(customStyleEl)
+    }
+  }
+
   const mountPoint = document.createElement('div')
   mountPoint.id = 'sai-chat-mount'
   shadowRoot.appendChild(mountPoint)
 
   return { hostEl, shadowRoot, mountPoint }
+}
+
+function buildCustomCss(styles: CustomStylesConfig): string {
+  const parts: string[] = []
+  if (styles.chatButton) parts.push(styles.chatButton)
+  if (styles.chatWindow) parts.push(styles.chatWindow)
+  if (styles.chatHeader) parts.push(styles.chatHeader)
+  if (styles.messageList) parts.push(styles.messageList)
+  if (styles.messageBubble) parts.push(styles.messageBubble)
+  if (styles.messageInput) parts.push(styles.messageInput)
+  if (styles.preChatForm) parts.push(styles.preChatForm)
+  if (styles.typingIndicator) parts.push(styles.typingIndicator)
+  if (styles.global) parts.push(styles.global)
+  return parts.join('\n')
 }
 
 export function setTheme(hostEl: HTMLElement, mode: 'light' | 'dark' | 'auto') {

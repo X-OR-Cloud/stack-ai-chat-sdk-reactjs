@@ -150,9 +150,6 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .chat-header__left { display: flex; flex-direction: column; gap: 2px; }
 .chat-header__title { font-size: 15px; font-weight: 700; }
 .chat-header__subtitle { font-size: 12px; opacity: 0.85; }
-.chat-header .agent-status__label { color: rgba(255,255,255,0.85); }
-.chat-header .agent-status__dot.online  { background-color: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,0.3); }
-.chat-header .agent-status__dot.offline { background-color: rgba(255,255,255,0.4); }
 .chat-header__right { display: flex; align-items: center; gap: 4px; }
 .chat-header__btn {
   width: 32px; height: 32px; border-radius: var(--sai-radius-sm);
@@ -238,6 +235,22 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .message-attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .message-attachment-image { max-width: 200px; max-height: 160px; border-radius: var(--sai-radius-sm); object-fit: cover; margin-top: 6px; }
 
+/* ── Message type badges (thinking, tool_use, etc.) ───────────────────── */
+.message-type-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; margin-bottom: 4px;
+  padding: 2px 8px; border-radius: var(--sai-radius-full);
+  background: rgba(0,0,0,0.08); color: var(--sai-text-muted);
+  width: fit-content;
+}
+.message-type-badge__icon { font-size: 12px; }
+.message-type-badge__label { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
+.message-bubble--thinking { opacity: 0.8; font-style: italic; border-left: 3px solid var(--sai-text-muted); }
+.message-bubble--tool_use { border-left: 3px solid var(--sai-primary); }
+.message-bubble--tool_result { border-left: 3px solid var(--sai-online); }
+.message-bubble--notice { border-left: 3px solid var(--sai-warning); }
+.message-bubble--system { border-left: 3px solid var(--sai-text-muted); opacity: 0.7; font-size: 12px; }
+
 /* ── Markdown body (agent messages) ────────────────────────────────────── */
 .md-body { display: flex; flex-direction: column; gap: 6px; }
 .md-body .md-p { margin: 0; }
@@ -255,6 +268,10 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .md-body .md-code-block { margin: 4px 0; padding: 10px 12px; border-radius: var(--sai-radius-sm); background: rgba(0,0,0,0.15); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
 .md-body .md-link { color: inherit; text-decoration: underline; opacity: 0.9; }
 .md-body .md-link:hover { opacity: 1; }
+.md-body .md-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; }
+.md-body .md-table th, .md-body .md-table td { padding: 6px 10px; border: 1px solid var(--sai-border); }
+.md-body .md-table th { font-weight: 600; background: rgba(0,0,0,0.05); }
+:host([data-theme="dark"]) .md-body .md-table th { background: rgba(255,255,255,0.08); }
 
 /* ── MessageInput ───────────────────────────────────────────────────────── */
 /* ── Reference chip ─────────────────────────────────────────────────────── */
@@ -356,8 +373,11 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .source-modal__content {
   flex: 1; overflow-y: auto; padding: 12px 14px;
   font-size: 13px; line-height: 1.6; color: var(--sai-text);
-  white-space: pre-wrap; word-break: break-word;
+  word-break: break-word;
 }
+.source-modal__content.md-body { white-space: normal; }
+.source-modal__content .md-table { font-size: 12px; }
+.source-modal__content .md-code-block { font-size: 11px; }
 .source-modal__content::-webkit-scrollbar { width: 4px; }
 .source-modal__content::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 4px; }
 
@@ -368,20 +388,15 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── AgentStatus ────────────────────────────────────────────────────────── */
+/* ── AgentStatus (Conversation ID) ─────────────────────────────────────── */
 .agent-status { display: flex; align-items: center; gap: 5px; }
-.agent-status__dot { width: 8px; height: 8px; border-radius: var(--sai-radius-full); flex-shrink: 0; transition: background-color var(--sai-transition); }
-.agent-status__dot.online  { background-color: var(--sai-online); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sai-online) 30%, transparent); }
-.agent-status__dot.offline { background-color: var(--sai-offline); }
-.agent-status__label { font-size: 12px; color: var(--sai-text-muted); }
-.agent-status__bullet { font-size: 12px; color: var(--sai-text-muted); line-height: 1; }
-.agent-status__conv-id { font-size: 11px; color: var(--sai-text-muted); font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.04em; }
-.agent-status__copy { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border-radius: 3px; color: var(--sai-text-muted); opacity: 0.7; transition: opacity var(--sai-transition), color var(--sai-transition); }
+.agent-status__session-icon { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.7; }
+.agent-status__conv-id { font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.04em; opacity: 0.85; }
+.agent-status__copy { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border-radius: 3px; opacity: 0.7; transition: opacity var(--sai-transition), color var(--sai-transition); }
 .agent-status__copy:hover { opacity: 1; }
 .agent-status__copy.copied { color: var(--sai-online); opacity: 1; }
 .agent-status__copy svg { width: 12px; height: 12px; }
-.chat-header .agent-status__bullet { color: rgba(255,255,255,0.5); }
-.chat-header .agent-status__conv-id { color: rgba(255,255,255,0.7); }
+.chat-header .agent-status { color: rgba(255,255,255,0.8); }
 .chat-header .agent-status__copy { color: rgba(255,255,255,0.7); }
 .chat-header .agent-status__copy:hover { color: #fff; opacity: 1; }
 .chat-header .agent-status__copy.copied { color: #4ade80; }

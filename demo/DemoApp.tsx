@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { StackAIChat } from '../src/index'
-import type { FieldConfig, PresenceUpdatePayload } from '../src/types'
+import type { FieldConfig, MessageType, PresenceUpdatePayload } from '../src/types'
 import xorStackAiLogo from './xor-stack-ai.png'
 
 const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/ws/chat'
@@ -44,6 +44,24 @@ export function DemoApp() {
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
   const [fields, setFields]             = useState<FieldRow[]>(DEFAULT_FIELDS)
+
+  // Visible message types
+  const ALL_MSG_TYPES = ['message', 'thinking', 'tool_use', 'tool_result', 'notice', 'system'] as const
+  const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set(['message']))
+  function toggleType(type: string) {
+    setVisibleTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(type)) { if (next.size > 1) next.delete(type) } else next.add(type)
+      return next
+    })
+  }
+
+  // Hidden patterns
+  const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
+
+  // Custom styles
+  const [customStylesEnabled, setCustomStylesEnabled] = useState(false)
+  const [customGlobalCss, setCustomGlobalCss] = useState(':host {\n  --sai-primary: #7c3aed;\n  --sai-primary-hover: #6d28d9;\n}')
   const [initialized, setInitialized]   = useState(false)
   const [log, setLog]                   = useState<string[]>([])
   const logRef = useRef<HTMLDivElement>(null)
@@ -85,6 +103,15 @@ export function DemoApp() {
       session: { persist: persistSession, ttl: 86400 },
       attachments: { enabled: attachEnabled, maxSize: 5, accept: ['image/*', 'application/pdf'], maxCount: 5 },
       theme: { mode: themeMode, primaryColor },
+      visibleMessageTypes: [...visibleTypes] as MessageType[],
+      ...(hideKnowledgeSearch ? {
+        hiddenPatterns: [
+          /^🧠\s?\*\*Knowledge Search\*\*/,
+          /^Retrieved \d+ knowledge chunk/,
+          /^No relevant knowledge found/,
+        ],
+      } : {}),
+      ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
       onConnected:          () => addLog('✅ Socket connected'),
       onConversationJoined: (id) => addLog(`📨 Conversation ready → ${id}`),
       onPresenceUpdate:     (p: PresenceUpdatePayload) => addLog(`👁 presence:update → ${JSON.stringify(p)}`),
@@ -95,7 +122,12 @@ export function DemoApp() {
       onFormSubmit:   (data) => addLog(`📋 Form submitted: ${JSON.stringify(data)}`),
       onMessage:      (msg) => {
         const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} source(s)` : ''
-        addLog(`💬 New message [${msg.role}]: ${msg.content.slice(0, 60)}${sourcesInfo}`)
+        addLog(`💬 New message [${msg.role}/${msg.type}]: ${msg.content.slice(0, 60)}${sourcesInfo}`)
+      },
+      onRawMessage:   (raw) => {
+        const { role, type, content, skipAgent, _id, ...rest } = raw as any
+        const preview = typeof content === 'string' ? content.slice(0, 80) : ''
+        addLog(`🔍 RAW [${role}/${type ?? 'undefined'}] skip=${skipAgent ?? false} id=${_id ?? '?'}: ${preview}${Object.keys(rest).length ? ' +' + Object.keys(rest).join(',') : ''}`)
       },
     })
 
@@ -215,6 +247,48 @@ export function DemoApp() {
               <input type="checkbox" checked={attachEnabled} onChange={(e) => setAttachEnabled(e.target.checked)} />
               <span>Cho phép đính kèm file</span>
             </label>
+
+            <label className="demo-toggle">
+              <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
+              <span>Ẩn Knowledge Search / Retrieved chunks</span>
+            </label>
+          </section>
+
+          {/* Visible message types */}
+          <section className="demo-section">
+            <h3 className="demo-section__title">📡 Visible Message Types</h3>
+            <p className="demo-hint">Chọn loại action từ WS hiển thị trên chat box</p>
+            <div className="demo-type-grid">
+              {ALL_MSG_TYPES.map((t) => (
+                <label key={t} className="demo-toggle demo-toggle--chip">
+                  <input type="checkbox" checked={visibleTypes.has(t)} onChange={() => toggleType(t)} />
+                  <span className={`demo-chip ${visibleTypes.has(t) ? 'demo-chip--active' : ''}`}>{t}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* Custom styles */}
+          <section className="demo-section">
+            <h3 className="demo-section__title">🎭 Custom Styles</h3>
+
+            <label className="demo-toggle">
+              <input type="checkbox" checked={customStylesEnabled} onChange={(e) => setCustomStylesEnabled(e.target.checked)} />
+              <span>Bật custom CSS</span>
+            </label>
+
+            {customStylesEnabled && (
+              <>
+                <label className="demo-label">Global CSS (inject vào Shadow DOM)</label>
+                <textarea
+                  className="demo-input demo-textarea"
+                  rows={5}
+                  value={customGlobalCss}
+                  onChange={(e) => setCustomGlobalCss(e.target.value)}
+                  spellCheck={false}
+                />
+              </>
+            )}
           </section>
 
           {/* Form fields */}

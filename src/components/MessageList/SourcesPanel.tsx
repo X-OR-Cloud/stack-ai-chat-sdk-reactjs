@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { MessageSource } from '../../types'
+import { renderMarkdown } from '../../utils/renderMarkdown'
 
 function sourceIcon(type: MessageSource['type']) {
   switch (type) {
@@ -75,7 +76,10 @@ function SourceDetailModal({ source, onClose }: SourceDetailModalProps) {
             {source.url}
           </a>
         )}
-        <div className="source-modal__content">{source.content}</div>
+        <div
+          className="source-modal__content md-body"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(source.content) }}
+        />
       </div>
     </div>
   )

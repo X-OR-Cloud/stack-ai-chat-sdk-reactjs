@@ -1,7 +1,7 @@
 /**
  * Lightweight markdown → safe HTML renderer for chat bubbles.
  * Supports: headings, bold, italic, inline code, fenced code blocks,
- *           unordered/ordered lists, blockquotes, links, horizontal rules.
+ *           unordered/ordered lists, blockquotes, links, horizontal rules, tables.
  * No external deps. XSS-safe via attribute escaping.
  */
 
@@ -87,6 +87,49 @@ export function renderMarkdown(raw: string): string {
       }
       output.push(`<blockquote class="md-blockquote">${inlineMarkdown(quoteLines.join('\n'))}</blockquote>`)
       continue
+    }
+
+    // Table: | col | col |
+    // Find the separator line (may have blank lines between header and separator)
+    if (/^\|.*\|/.test(line) && line.split('|').length >= 3) {
+      let sepIdx = i + 1
+      while (sepIdx < lines.length && lines[sepIdx].trim() === '') sepIdx++
+      if (sepIdx < lines.length && /^\|\s*[:\-][\s\-:|]*\|/.test(lines[sepIdx])) {
+        // Parse header row
+        const headerCells = line.split('|').slice(1, -1).map((c) => c.trim())
+
+        // Parse separator row for alignment
+        const sepCells = lines[sepIdx].split('|').slice(1, -1).map((c) => c.trim())
+        const aligns = sepCells.map((c) => {
+          if (c.startsWith(':') && c.endsWith(':')) return 'center'
+          if (c.endsWith(':')) return 'right'
+          return 'left'
+        })
+
+        i = sepIdx + 1 // skip header + blanks + separator
+
+        // Parse body rows (skip blank lines between rows)
+        const bodyRows: string[][] = []
+        while (i < lines.length) {
+          if (lines[i].trim() === '') { i++; continue }
+          if (!/^\|.*\|/.test(lines[i])) break
+          bodyRows.push(lines[i].split('|').slice(1, -1).map((c) => c.trim()))
+          i++
+        }
+
+        const thead = '<thead><tr>' + headerCells.map((c, j) =>
+          `<th style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c)}</th>`
+        ).join('') + '</tr></thead>'
+
+        const tbody = '<tbody>' + bodyRows.map((row) =>
+          '<tr>' + row.map((c, j) =>
+            `<td style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c)}</td>`
+          ).join('') + '</tr>'
+        ).join('') + '</tbody>'
+
+        output.push(`<table class="md-table">${thead}${tbody}</table>`)
+        continue
+      }
     }
 
     // Unordered list - / * / +
