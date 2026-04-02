@@ -73,7 +73,6 @@ export function useSocket() {
   const failMessage = useChatStore((s) => s.failMessage)
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
   const setConversationId = useChatStore((s) => s.setConversationId)
-  const conversationId = useChatStore((s) => s.conversationId)
 
   const loadHistory = useCallback((socket: Socket, convId: string) => {
     const allowedTypes = config?.visibleMessageTypes ?? ['message']
@@ -114,6 +113,11 @@ export function useSocket() {
     isConnectingRef.current = true
     setPhase('connecting')
 
+    // Clear stale conversationId từ session trước để không leak sang connection mới
+    if (!config.conversationId) {
+      setConversationId(null)
+    }
+
     const { origin, namespace } = parseWsUrl(config.wsUrl)
 
     const socket = io(`${origin}${namespace}`, {
@@ -134,8 +138,9 @@ export function useSocket() {
       config.onConnected?.()
 
       // Token đã chứa agentId — server tự associate agent cho conversation.
-      // Nếu có conversationId từ config/session, join lại để resume.
-      const knownConvId = config.conversationId ?? useChatStore.getState().conversationId
+      // Chỉ join lại conversation nếu host app truyền explicit conversationId qua config.
+      // KHÔNG dùng store.conversationId vì nó có thể là stale/shared từ session trước.
+      const knownConvId = config.conversationId
       if (knownConvId) {
         socket.emit('conversation:join', { conversationId: knownConvId }, (res: { success: boolean; conversationId?: string }) => {
           if (res.success && res.conversationId) {
@@ -222,7 +227,7 @@ export function useSocket() {
       }
       // user messages từ server (echo) không cần add lại vì đã có optimistic
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, conversationId, loadHistory])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory])
 
   const disconnect = useCallback(() => {
     isConnectingRef.current = false
@@ -234,7 +239,6 @@ export function useSocket() {
   const sendMessage = useCallback((payload: SendMessagePayload) => {
     if (!socketRef.current?.connected) return
 
-    const convId = useChatStore.getState().conversationId
     const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
     addMessage({
@@ -248,8 +252,9 @@ export function useSocket() {
       timestamp: new Date().toISOString(),
     })
 
+    // KHÔNG gửi conversationId trong DTO — server sẽ dùng client.data.conversationId
+    // đã được resolve đúng per-user để tránh ghi message vào conversation sai.
     socketRef.current.emit('message:send', {
-      ...(convId ? { conversationId: convId } : {}),
       role: 'user',
       content: payload.content,
       type: 'message',

@@ -31,7 +31,7 @@ interface ChatState {
   close: () => void
   setPhase: (phase: ChatPhase) => void
   toggleExpanded: () => void
-  setConversationId: (id: string) => void
+  setConversationId: (id: string | null) => void
   setReference: (text: string | null) => void
   setUserFields: (fields: Record<string, string>) => void
   addMessage: (message: Message) => void
