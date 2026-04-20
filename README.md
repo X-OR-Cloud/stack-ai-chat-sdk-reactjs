@@ -2,7 +2,7 @@
 
 Floating chat widget SDK for React apps — powered by [Stack AI](https://x-or.cloud).
 
-Embed a fully-featured live chat button into any React application in minutes. Connects to your Stack AI backend via Socket.IO with support for real-time messaging, agent presence, typing indicators, file attachments, markdown rendering, reference/quote injection, expanded mode, dark/light mode, and Shadow DOM style isolation.
+Embed a fully-featured live chat widget into any React application in minutes. Connects to your Stack AI backend via Socket.IO with support for real-time messaging, agent presence, typing indicators, file attachments, markdown rendering, reference/quote injection, greeting messages, session dividers, expanded mode, dark/light mode, and Shadow DOM style isolation.
 
 ---
 
@@ -86,6 +86,11 @@ StackAIChat.init({
     /^No relevant knowledge found/,
   ],
 
+  // ── Greeting ───────────────────────────────────────────
+  // Message shown immediately when a fresh conversation starts (no history).
+  // Not shown when resuming an existing conversation.
+  greeting: 'Hello! How can I help you today?',
+
   // ── References ─────────────────────────────────────────
   // Show or hide reference documents attached to agent responses.
   // Default: true
@@ -122,8 +127,15 @@ StackAIChat.init({
 
 ## API
 
+### `StackAIChat.version`
+Read-only string containing the current SDK version. Useful for debugging when integrating into consumer apps.
+
+```ts
+console.log(StackAIChat.version) // e.g. "0.11.0"
+```
+
 ### `StackAIChat.init(config)`
-Initialize and mount the chat widget. Can only be called once — call `destroy()` first to re-initialize.
+Initialize and mount the chat widget. Can only be called once — call `destroy()` first to re-initialize. Logs `[StackAIChat] SDK v<version>` to the console on startup.
 
 ### `StackAIChat.open()`
 Programmatically open the chat window.
@@ -173,6 +185,7 @@ Unmount the widget and clean up all resources.
 | `theme` | `ThemeConfig` | — | Theme settings |
 | `visibleMessageTypes` | `MessageType[]` | — | Action types to display. Default: `['message']` |
 | `hiddenPatterns` | `RegExp[]` | — | Regex patterns to filter out messages by content |
+| `greeting` | `string` | — | Welcome message shown when a fresh conversation starts (no history). Omit to disable. |
 | `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
@@ -285,13 +298,16 @@ The server determines the flow based on your JWT `type` claim:
 
 ## Features
 
-- **Floating button** — fixed position, bottom-left or bottom-right
+- **Floating button** — fixed position, bottom-left or bottom-right; auto-hides when chat is open
 - **Pre-chat form** — fully configurable fields with validation
 - **Session persistence** — skip form on return visits via localStorage
-- **Real-time messaging** — Socket.IO with optimistic UI
+- **Real-time messaging** — Socket.IO with optimistic UI; input disabled while agent is processing
 - **Agent presence** — live online/offline status indicator with conversation ID display
-- **Typing indicator** — animated dots when agent is typing
-- **Markdown rendering** — agent messages rendered with bold, italic, code blocks, lists, blockquotes, links, and more
+- **Typing indicator** — animated dots when agent is typing (8s timeout)
+- **Markdown rendering** — agent messages rendered full-width without bubble; supports bold, italic, code blocks, lists, blockquotes, links, tables
+- **Claude-style message UI** — agent messages full-width no-bubble; `thinking`/`tool_use`/`tool_result` as collapsible pills; `notice`/`system` as inline banners
+- **Greeting message** — configurable welcome message on fresh conversations; skipped when resuming history
+- **Session divider** — visual separator between history and new session when resuming a conversation
 - **File attachments** — image preview + file chips, configurable limits
 - **Reference/quote injection** — inject quoted text into the input via `setReference()`, useful for "reply to selection"
 - **Expanded mode** — toggle to 50vw × 80vh (100vw × 100vh on mobile) for more reading space
@@ -301,6 +317,7 @@ The server determines the flow based on your JWT `type` claim:
 - **Visible message types** — opt-in to `thinking`, `tool_use`, `tool_result`, `notice`, `system` action types
 - **Reference documents** — agent responses with attached sources/citations rendered as interactive chips with detail modal; toggle via `showReferences`
 - **Custom styles** — per-component CSS overrides injected into Shadow DOM
+- **Version exposure** — `StackAIChat.version` readable by consumer apps; logged to console on init
 - **TypeScript** — full type definitions included
 
 ---
