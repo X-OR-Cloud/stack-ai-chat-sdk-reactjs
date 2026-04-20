@@ -207,6 +207,11 @@ export function useSocket() {
       config.onPresenceUpdate?.(payload)
 
       if (payload.type === 'anonymous' && payload.conversationId) {
+        // Only assign conversationId and load history if this session doesn't have one yet.
+        // Ignores presence:update events from other anonymous users sharing the same agentId room.
+        const currentConvId = useChatStore.getState().conversationId
+        if (currentConvId) return
+
         setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
