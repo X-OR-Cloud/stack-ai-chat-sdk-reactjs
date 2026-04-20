@@ -294,13 +294,13 @@ export function useSocket() {
       ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
     })
 
-    // Fallback: mark failed nếu 10s không nhận confirm
+    // Fallback: mark failed nếu 60s không nhận ack (missing confirm / server issue)
     setTimeout(() => {
       const current = useChatStore.getState().messages.find(
         (m) => m.localId === localId && m.status === 'sending'
       )
       if (current) failMessage(localId)
-    }, 10_000)
+    }, 60_000)
   }, [addMessage, failMessage])
 
   useEffect(() => {

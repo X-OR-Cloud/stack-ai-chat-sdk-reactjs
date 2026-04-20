@@ -21,6 +21,9 @@ export function ChatWindow({ position }: ChatWindowProps) {
   const close = useChatStore((s) => s.close)
   const isExpanded = useChatStore((s) => s.isExpanded)
   const toggleExpanded = useChatStore((s) => s.toggleExpanded)
+  const isAgentTyping = useChatStore((s) => s.isAgentTyping)
+  const hasPending = useChatStore((s) => s.messages.some((m) => m.status === 'sending'))
+  const isProcessing = isAgentTyping || hasPending
 
   const { connect, sendMessage } = useSocket()
   const session = useSession(config?.session)
@@ -120,6 +123,7 @@ export function ChatWindow({ position }: ChatWindowProps) {
           <MessageInput
             onSend={handleSend}
             attachmentsConfig={config.attachments}
+            disabled={isProcessing}
           />
         </>
       )}
