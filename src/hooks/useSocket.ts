@@ -66,6 +66,7 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const isConnectingRef = useRef(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
+  const greetingInjectedRef = useRef(false)
   const config = useChatStore((s) => s.config)
   const setPhase = useChatStore((s) => s.setPhase)
   const addMessage = useChatStore((s) => s.addMessage)
@@ -77,7 +78,8 @@ export function useSocket() {
 
   const injectGreeting = useCallback(() => {
     const greeting = config?.greeting
-    if (!greeting) return
+    if (!greeting || greetingInjectedRef.current) return
+    greetingInjectedRef.current = true
     addMessage({
       localId: `greeting_${Date.now()}`,
       role: 'assistant',
@@ -98,18 +100,19 @@ export function useSocket() {
       success: boolean
       data?: ServerMessage[]
     }) => {
-      if (res.success && res.data?.length) {
-        const messages = res.data
-          .filter((m) => !m.type || allowedTypes.includes(m.type as any))
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .filter((m) => !m.skipAgent)
-          .filter((m) => !isHiddenByPattern(m.content, hiddenPatterns))
-          .map((m) => {
-            const mapped = mapServerMessage(m)
-            if (mapped.messageId) seenIdsRef.current.add(mapped.messageId)
-            return mapped
-          })
-        if (messages.length) prependMessages(messages)
+      const rawMessages = res?.data ?? []
+      const messages = rawMessages
+        .filter((m) => !m.type || allowedTypes.includes(m.type as any))
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .filter((m) => !m.skipAgent)
+        .filter((m) => !isHiddenByPattern(m.content, hiddenPatterns))
+        .map((m) => {
+          const mapped = mapServerMessage(m)
+          if (mapped.messageId) seenIdsRef.current.add(mapped.messageId)
+          return mapped
+        })
+      if (messages.length) {
+        prependMessages(messages)
       } else {
         // No history → fresh conversation, show greeting
         injectGreeting()
@@ -170,8 +173,9 @@ export function useSocket() {
           setPhase('chat')
         })
       } else {
-        // Anonymous / new session: server sẽ tạo conversation và gửi conversationId qua presence:update
+        // Anonymous / new session — không có history để check, inject greeting ngay
         setPhase('chat')
+        injectGreeting()
       }
     })
 
@@ -249,6 +253,7 @@ export function useSocket() {
 
   const disconnect = useCallback(() => {
     isConnectingRef.current = false
+    greetingInjectedRef.current = false
     socketRef.current?.removeAllListeners()
     socketRef.current?.disconnect()
     socketRef.current = null
