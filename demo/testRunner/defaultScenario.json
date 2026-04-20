@@ -1,0 +1,17 @@
+{
+  "name": "Basic flow test",
+  "description": "Test kết nối, gửi tin và reload lịch sử hội thoại",
+  "skipForm": true,
+  "formData": {
+    "fullName": "Test User",
+    "phone": "0901234567",
+    "idCard": "123456789"
+  },
+  "messages": [
+    { "text": "Xin chào, tôi muốn hỏi về sản phẩm", "delayAfter": 8000 },
+    { "text": "Cho tôi biết giá dịch vụ cơ bản", "delayAfter": 8000 },
+    { "text": "Cảm ơn bạn", "delayAfter": 3000 }
+  ],
+  "testReopen": true,
+  "reopenDelay": 2000
+}

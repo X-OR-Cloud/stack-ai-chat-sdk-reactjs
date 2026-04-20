@@ -1,6 +1,7 @@
 import type { Message, AttachmentItem } from '../../types'
 import { renderMarkdown } from '../../utils/renderMarkdown'
 import { SourcesPanel } from './SourcesPanel'
+import { useChatStore } from '../../store/chatStore'
 
 function formatTime(iso?: string): string {
   if (!iso) return ''
@@ -53,6 +54,7 @@ const TYPE_LABELS: Record<string, { icon: string; label: string }> = {
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const typeInfo = message.type !== 'message' ? TYPE_LABELS[message.type] : null
+  const showReferences = useChatStore((s) => s.config?.showReferences ?? true)
 
   return (
     <div className={`message-row ${message.role}`}>
@@ -77,7 +79,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}
       </div>
 
-      {!isUser && message.sources.length > 0 && (
+      {!isUser && showReferences && message.sources.length > 0 && (
         <SourcesPanel sources={message.sources} />
       )}
 

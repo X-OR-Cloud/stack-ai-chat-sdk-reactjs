@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { StackAIChat } from '../src/index'
-import type { FieldConfig, MessageType, PresenceUpdatePayload } from '../src/types'
+import type { MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
+import { TestRunner } from './testRunner/TestRunner'
 import xorStackAiLogo from './xor-stack-ai.png'
 
 const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/ws/chat'
@@ -43,6 +44,7 @@ export function DemoApp() {
   const [primaryColor, setPrimaryColor] = useState('#0066FF')
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
+  const [showReferences, setShowReferences] = useState(true)
   const [fields, setFields]             = useState<FieldRow[]>(DEFAULT_FIELDS)
 
   // Visible message types
@@ -65,6 +67,7 @@ export function DemoApp() {
   const [initialized, setInitialized]   = useState(false)
   const [log, setLog]                   = useState<string[]>([])
   const logRef = useRef<HTMLDivElement>(null)
+  const [activeTab, setActiveTab]       = useState<'preview' | 'test'>('preview')
 
   const tokenInfo = decodeJwtPayload(token)
 
@@ -89,42 +92,21 @@ export function DemoApp() {
       return
     }
 
-    const sdkFields: FieldConfig[] = fields
-      .filter((f) => f.name.trim() && f.label.trim())
-      .map(({ name, label, type, required }) => ({ name, label, type, required }))
-
     StackAIChat.init({
-      wsUrl,
-      token,
-      title,
-      subtitle,
-      position,
-      fields: sdkFields,
-      session: { persist: persistSession, ttl: 86400 },
-      attachments: { enabled: attachEnabled, maxSize: 5, accept: ['image/*', 'application/pdf'], maxCount: 5 },
-      theme: { mode: themeMode, primaryColor },
-      visibleMessageTypes: [...visibleTypes] as MessageType[],
-      ...(hideKnowledgeSearch ? {
-        hiddenPatterns: [
-          /^🧠\s?\*\*Knowledge Search\*\*/,
-          /^Retrieved \d+ knowledge chunk/,
-          /^No relevant knowledge found/,
-        ],
-      } : {}),
-      ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
+      ...(sdkConfig as SDKConfig),
       onConnected:          () => addLog('✅ Socket connected'),
       onConversationJoined: (id) => addLog(`📨 Conversation ready → ${id}`),
       onPresenceUpdate:     (p: PresenceUpdatePayload) => addLog(`👁 presence:update → ${JSON.stringify(p)}`),
       onDisconnected:       () => addLog('🔌 Socket disconnected'),
       onError:              (msg) => addLog(`❌ Error: ${msg}`),
-      onOpen:         () => addLog('📂 Widget opened'),
-      onClose:        () => addLog('📁 Widget closed'),
-      onFormSubmit:   (data) => addLog(`📋 Form submitted: ${JSON.stringify(data)}`),
-      onMessage:      (msg) => {
+      onOpen:               () => addLog('📂 Widget opened'),
+      onClose:              () => addLog('📁 Widget closed'),
+      onFormSubmit:         (data) => addLog(`📋 Form submitted: ${JSON.stringify(data)}`),
+      onMessage:            (msg) => {
         const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} source(s)` : ''
         addLog(`💬 New message [${msg.role}/${msg.type}]: ${msg.content.slice(0, 60)}${sourcesInfo}`)
       },
-      onRawMessage:   (raw) => {
+      onRawMessage:         (raw) => {
         const { role, type, content, skipAgent, _id, ...rest } = raw as any
         const preview = typeof content === 'string' ? content.slice(0, 80) : ''
         addLog(`🔍 RAW [${role}/${type ?? 'undefined'}] skip=${skipAgent ?? false} id=${_id ?? '?'}: ${preview}${Object.keys(rest).length ? ' +' + Object.keys(rest).join(',') : ''}`)
@@ -148,6 +130,30 @@ export function DemoApp() {
 
   function updateField(id: number, key: keyof FieldRow, value: string | boolean) {
     setFields((prev) => prev.map((f) => f.id === id ? { ...f, [key]: value } : f))
+  }
+
+  const sdkConfig: Partial<SDKConfig> = {
+    wsUrl,
+    token,
+    title,
+    subtitle,
+    position,
+    fields: fields
+      .filter((f) => f.name.trim() && f.label.trim())
+      .map(({ name, label, type, required }) => ({ name, label, type, required })),
+    session: { persist: persistSession, ttl: 86400 },
+    attachments: { enabled: attachEnabled, maxSize: 5, accept: ['image/*', 'application/pdf'], maxCount: 5 },
+    theme: { mode: themeMode, primaryColor },
+    visibleMessageTypes: [...visibleTypes] as MessageType[],
+    ...(hideKnowledgeSearch ? {
+      hiddenPatterns: [
+        /^🧠\s?\*\*Knowledge Search\*\*/,
+        /^Retrieved \d+ knowledge chunk/,
+        /^No relevant knowledge found/,
+      ],
+    } : {}),
+    showReferences,
+    ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
 
   return (
@@ -252,6 +258,11 @@ export function DemoApp() {
               <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
               <span>Ẩn Knowledge Search / Retrieved chunks</span>
             </label>
+
+            <label className="demo-toggle">
+              <input type="checkbox" checked={showReferences} onChange={(e) => setShowReferences(e.target.checked)} />
+              <span>Hiển thị tài liệu tham chiếu</span>
+            </label>
           </section>
 
           {/* Visible message types */}
@@ -349,92 +360,117 @@ export function DemoApp() {
 
       {/* ── Main ────────────────────────────────────────────────────────────── */}
       <main className="demo-main">
-        <div className="demo-preview-header">
-          <h2>Preview</h2>
-          <p>
-            Widget xuất hiện góc {position === 'bottom-right' ? 'phải' : 'trái'} dưới màn hình.
-            {initialized && <> <strong>Bôi đen đoạn văn bản</strong> bất kỳ bên dưới để gửi tham chiếu vào chat.</>}
-          </p>
+
+        {/* Tabs */}
+        <div className="demo-tabs">
+          <button
+            className={`demo-tab ${activeTab === 'preview' ? 'demo-tab--active' : ''}`}
+            onClick={() => setActiveTab('preview')}
+          >
+            👁 Preview
+          </button>
+          <button
+            className={`demo-tab ${activeTab === 'test' ? 'demo-tab--active' : ''}`}
+            onClick={() => setActiveTab('test')}
+          >
+            🧪 Test Runner
+          </button>
         </div>
 
-        <div className="demo-mockup">
-          <div className="demo-mockup__browser">
-            <div className="demo-mockup__bar">
-              <span className="dot red" /><span className="dot yellow" /><span className="dot green" />
-              <span className="demo-mockup__url">https://your-app.com</span>
+        {activeTab === 'preview' && (
+          <>
+            <div className="demo-preview-header">
+              <p>
+                Widget xuất hiện góc {position === 'bottom-right' ? 'phải' : 'trái'} dưới màn hình.
+                {initialized && <> <strong>Bôi đen đoạn văn bản</strong> bất kỳ bên dưới để gửi tham chiếu vào chat.</>}
+              </p>
             </div>
-            <div className="demo-mockup__content">
-              <div className="demo-mockup__page">
-                <div
-                  className="demo-sample-page"
-                  onMouseUp={() => {
-                    if (!initialized) return
-                    const sel = window.getSelection()
-                    const text = sel?.toString().trim()
-                    if (text) {
-                      StackAIChat.setReference(text)
-                      StackAIChat.open()
-                      addLog(`📌 Reference set: "${text.slice(0, 50)}${text.length > 50 ? '…' : ''}"`)
-                      sel?.removeAllRanges()
-                    }
-                  }}
-                >
-                  <nav className="demo-page__nav">
-                    <span className="demo-page__brand">⚡ Your Company</span>
-                    <span className="demo-page__navlinks">Sản phẩm · Giá cả · Tài liệu · Blog</span>
-                  </nav>
 
-                  <section className="demo-page__hero">
-                    <h1>Nền tảng AI thông minh cho doanh nghiệp</h1>
-                    <p>Tự động hóa quy trình, nâng cao trải nghiệm khách hàng và tăng hiệu suất vận hành với giải pháp AI toàn diện của chúng tôi.</p>
-                    <div className="demo-page__cta-row">
-                      <button className="demo-page__cta demo-page__cta--primary">Dùng thử miễn phí</button>
-                      <button className="demo-page__cta demo-page__cta--ghost">Xem demo</button>
-                    </div>
-                  </section>
+            <div className="demo-mockup">
+              <div className="demo-mockup__browser">
+                <div className="demo-mockup__bar">
+                  <span className="dot red" /><span className="dot yellow" /><span className="dot green" />
+                  <span className="demo-mockup__url">https://your-app.com</span>
+                </div>
+                <div className="demo-mockup__content">
+                  <div className="demo-mockup__page">
+                    <div
+                      className="demo-sample-page"
+                      onMouseUp={() => {
+                        if (!initialized) return
+                        const sel = window.getSelection()
+                        const text = sel?.toString().trim()
+                        if (text) {
+                          StackAIChat.setReference(text)
+                          StackAIChat.open()
+                          addLog(`📌 Reference set: "${text.slice(0, 50)}${text.length > 50 ? '…' : ''}"`)
+                          sel?.removeAllRanges()
+                        }
+                      }}
+                    >
+                      <nav className="demo-page__nav">
+                        <span className="demo-page__brand">⚡ Your Company</span>
+                        <span className="demo-page__navlinks">Sản phẩm · Giá cả · Tài liệu · Blog</span>
+                      </nav>
 
-                  <section className="demo-page__cards">
-                    <div className="demo-page__card">
-                      <div className="demo-page__card-icon">🤖</div>
-                      <h3>AI Chatbot</h3>
-                      <p>Triển khai chatbot thông minh hỗ trợ khách hàng 24/7, tích hợp đa kênh và xử lý ngôn ngữ tự nhiên tiếng Việt.</p>
-                    </div>
-                    <div className="demo-page__card">
-                      <div className="demo-page__card-icon">📊</div>
-                      <h3>Phân tích dữ liệu</h3>
-                      <p>Dashboard thời gian thực với báo cáo chi tiết về hiệu suất, xu hướng khách hàng và cơ hội tăng trưởng doanh thu.</p>
-                    </div>
-                    <div className="demo-page__card">
-                      <div className="demo-page__card-icon">🔗</div>
-                      <h3>Tích hợp linh hoạt</h3>
-                      <p>Kết nối dễ dàng với CRM, ERP và hơn 200 ứng dụng phổ biến thông qua API RESTful và webhook tiêu chuẩn.</p>
-                    </div>
-                  </section>
+                      <section className="demo-page__hero">
+                        <h1>Nền tảng AI thông minh cho doanh nghiệp</h1>
+                        <p>Tự động hóa quy trình, nâng cao trải nghiệm khách hàng và tăng hiệu suất vận hành với giải pháp AI toàn diện của chúng tôi.</p>
+                        <div className="demo-page__cta-row">
+                          <button className="demo-page__cta demo-page__cta--primary">Dùng thử miễn phí</button>
+                          <button className="demo-page__cta demo-page__cta--ghost">Xem demo</button>
+                        </div>
+                      </section>
 
-                  {!initialized && (
-                    <div className="demo-mockup__hint">
-                      ← Điền thông tin và nhấn <strong>Khởi tạo Widget</strong>
+                      <section className="demo-page__cards">
+                        <div className="demo-page__card">
+                          <div className="demo-page__card-icon">🤖</div>
+                          <h3>AI Chatbot</h3>
+                          <p>Triển khai chatbot thông minh hỗ trợ khách hàng 24/7, tích hợp đa kênh và xử lý ngôn ngữ tự nhiên tiếng Việt.</p>
+                        </div>
+                        <div className="demo-page__card">
+                          <div className="demo-page__card-icon">📊</div>
+                          <h3>Phân tích dữ liệu</h3>
+                          <p>Dashboard thời gian thực với báo cáo chi tiết về hiệu suất, xu hướng khách hàng và cơ hội tăng trưởng doanh thu.</p>
+                        </div>
+                        <div className="demo-page__card">
+                          <div className="demo-page__card-icon">🔗</div>
+                          <h3>Tích hợp linh hoạt</h3>
+                          <p>Kết nối dễ dàng với CRM, ERP và hơn 200 ứng dụng phổ biến thông qua API RESTful và webhook tiêu chuẩn.</p>
+                        </div>
+                      </section>
+
+                      {!initialized && (
+                        <div className="demo-mockup__hint">
+                          ← Điền thông tin và nhấn <strong>Khởi tạo Widget</strong>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Event log */}
-        <div className="demo-log-panel">
-          <div className="demo-log-header">
-            <span>📡 Event Log</span>
-            <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
-          </div>
-          <div className="demo-log" ref={logRef}>
-            {log.length === 0
-              ? <span className="demo-log__empty">Chưa có sự kiện nào...</span>
-              : log.map((l, i) => <div key={i} className="demo-log__line">{l}</div>)
-            }
-          </div>
-        </div>
+            {/* Event log */}
+            <div className="demo-log-panel">
+              <div className="demo-log-header">
+                <span>📡 Event Log</span>
+                <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
+              </div>
+              <div className="demo-log" ref={logRef}>
+                {log.length === 0
+                  ? <span className="demo-log__empty">Chưa có sự kiện nào...</span>
+                  : log.map((l, i) => <div key={i} className="demo-log__line">{l}</div>)
+                }
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'test' && (
+          <TestRunner sdkConfig={sdkConfig} />
+        )}
+
       </main>
     </div>
   )

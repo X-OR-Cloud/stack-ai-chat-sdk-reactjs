@@ -2,6 +2,7 @@ import { createRoot, Root } from 'react-dom/client'
 import { createElement } from 'react'
 import { ChatWidget } from './ChatWidget'
 import { useChatStore } from './store/chatStore'
+import { bridgeSendMessage, unregisterSendMessage, bridgeConnect, unregisterConnect } from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
 import type { SDKConfig } from './types'
 
@@ -84,6 +85,22 @@ export const StackAIChat = {
     root.render(createElement(ChatWidget, { config: currentConfig }))
   },
 
+  connect(): void {
+    bridgeConnect()
+  },
+
+  sendMessage(content: string): void {
+    bridgeSendMessage(content)
+  },
+
+  getMessages() {
+    return useChatStore.getState().messages
+  },
+
+  getPhase() {
+    return useChatStore.getState().phase
+  },
+
   destroy(): void {
     if (!root) return
     root.unmount()
@@ -93,6 +110,8 @@ export const StackAIChat = {
     cleanupThemeWatcher?.()
     cleanupThemeWatcher = null
     currentConfig = null
+    unregisterSendMessage()
+    unregisterConnect()
     useChatStore.getState().reset()
   },
 }

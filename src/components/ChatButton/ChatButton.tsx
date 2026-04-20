@@ -22,7 +22,7 @@ export function ChatButton({ position, unreadCount = 0 }: ChatButtonProps) {
   }
 
   return (
-    <div className={`chat-button-wrapper ${position}`}>
+    <div className={`chat-button-wrapper ${position}${isOpen ? ' is-hidden' : ''}`}>
       <button
         className={`chat-button ${isOpen ? 'is-open' : ''}`}
         onClick={handleClick}

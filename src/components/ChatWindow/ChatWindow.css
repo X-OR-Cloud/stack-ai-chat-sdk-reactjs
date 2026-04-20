@@ -1,9 +1,9 @@
 .chat-window {
   position: fixed;
-  bottom: 92px;
+  bottom: 24px;
   width: 360px;
   height: 560px;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 48px);
   z-index: var(--sai-z);
   display: flex;
   flex-direction: column;

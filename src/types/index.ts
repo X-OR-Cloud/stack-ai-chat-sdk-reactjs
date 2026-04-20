@@ -110,6 +110,10 @@ export interface SDKConfig {
   // Custom styles — per-component CSS overrides injected into Shadow DOM
   customStyles?: CustomStylesConfig
 
+  // References — show/hide agent reference documents attached to responses.
+  // Default: true
+  showReferences?: boolean
+
   // Callbacks
   onOpen?: () => void
   onClose?: () => void

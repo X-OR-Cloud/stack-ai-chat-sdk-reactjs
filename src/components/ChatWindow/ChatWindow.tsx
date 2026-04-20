@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useChatStore } from '../../store/chatStore'
 import { MessageList } from '../MessageList/MessageList'
 import { MessageInput } from '../MessageInput/MessageInput'
@@ -5,6 +6,7 @@ import { PreChatForm } from '../PreChatForm/PreChatForm'
 import { AgentStatus } from '../AgentStatus/AgentStatus'
 import { useSocket } from '../../hooks/useSocket'
 import { useSession } from '../../hooks/useSession'
+import { registerConnect, unregisterConnect } from '../../sendMessageBridge'
 import type { AttachmentItem } from '../../types'
 
 interface ChatWindowProps {
@@ -22,6 +24,11 @@ export function ChatWindow({ position }: ChatWindowProps) {
 
   const { connect, sendMessage } = useSocket()
   const session = useSession(config?.session)
+
+  useEffect(() => {
+    registerConnect(connect)
+    return () => unregisterConnect()
+  }, [connect])
 
   function handleFormSubmit(values: Record<string, string>) {
     setUserFields(values)

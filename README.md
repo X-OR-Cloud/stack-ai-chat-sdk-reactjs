@@ -86,6 +86,11 @@ StackAIChat.init({
     /^No relevant knowledge found/,
   ],
 
+  // ── References ─────────────────────────────────────────
+  // Show or hide reference documents attached to agent responses.
+  // Default: true
+  showReferences: false,
+
   // ── Custom Styles ──────────────────────────────────────
   // Override CSS for individual UI components (injected into Shadow DOM).
   customStyles: {
@@ -168,6 +173,7 @@ Unmount the widget and clean up all resources.
 | `theme` | `ThemeConfig` | — | Theme settings |
 | `visibleMessageTypes` | `MessageType[]` | — | Action types to display. Default: `['message']` |
 | `hiddenPatterns` | `RegExp[]` | — | Regex patterns to filter out messages by content |
+| `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
 | `onClose` | `() => void` | — | Called when widget closes |
@@ -293,6 +299,7 @@ The server determines the flow based on your JWT `type` claim:
 - **Dark / Light / Auto** — theme system via CSS custom properties
 - **Anonymous flow** — zero-config conversation creation for anonymous visitors
 - **Visible message types** — opt-in to `thinking`, `tool_use`, `tool_result`, `notice`, `system` action types
+- **Reference documents** — agent responses with attached sources/citations rendered as interactive chips with detail modal; toggle via `showReferences`
 - **Custom styles** — per-component CSS overrides injected into Shadow DOM
 - **TypeScript** — full type definitions included
 

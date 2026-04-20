@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useChatStore } from '../store/chatStore'
+import { registerSendMessage, unregisterSendMessage } from '../sendMessageBridge'
 import type {
   Message,
   MessageSource,
@@ -271,11 +272,13 @@ export function useSocket() {
   }, [addMessage, failMessage])
 
   useEffect(() => {
+    registerSendMessage((payload) => sendMessage(payload))
     return () => {
+      unregisterSendMessage()
       disconnect()
       if (typingTimeout) clearTimeout(typingTimeout)
     }
-  }, [disconnect])
+  }, [disconnect, sendMessage])
 
   return { connect, disconnect, sendMessage }
 }
