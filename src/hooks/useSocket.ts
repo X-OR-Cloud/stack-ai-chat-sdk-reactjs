@@ -75,6 +75,21 @@ export function useSocket() {
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
   const setConversationId = useChatStore((s) => s.setConversationId)
 
+  const injectGreeting = useCallback(() => {
+    const greeting = config?.greeting
+    if (!greeting) return
+    addMessage({
+      localId: `greeting_${Date.now()}`,
+      role: 'assistant',
+      content: greeting,
+      type: 'message',
+      status: 'sent',
+      attachments: [],
+      sources: [],
+      timestamp: new Date().toISOString(),
+    })
+  }, [config, addMessage])
+
   const loadHistory = useCallback((socket: Socket, convId: string) => {
     const allowedTypes = config?.visibleMessageTypes ?? ['message']
     const hiddenPatterns = config?.hiddenPatterns ?? []
@@ -95,9 +110,12 @@ export function useSocket() {
             return mapped
           })
         if (messages.length) prependMessages(messages)
+      } else {
+        // No history → fresh conversation, show greeting
+        injectGreeting()
       }
     })
-  }, [config, prependMessages])
+  }, [config, prependMessages, injectGreeting])
 
   const connect = useCallback(() => {
     if (!config) return
@@ -175,7 +193,6 @@ export function useSocket() {
       config.onPresenceUpdate?.(payload)
 
       if (payload.type === 'anonymous' && payload.conversationId) {
-        // Anonymous: server auto-creates conversation, gửi conversationId ở đây
         setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)

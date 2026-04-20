@@ -114,6 +114,9 @@ export interface SDKConfig {
   // Default: true
   showReferences?: boolean
 
+  // Greeting — message shown immediately after connection, before any user input.
+  greeting?: string
+
   // Callbacks
   onOpen?: () => void
   onClose?: () => void

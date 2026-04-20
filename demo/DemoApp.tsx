@@ -39,6 +39,7 @@ export function DemoApp() {
   const [token, setToken]               = useState(DEFAULT_TOKEN)
   const [title, setTitle]               = useState('Hỗ trợ khách hàng')
   const [subtitle, setSubtitle]         = useState('Thường trả lời trong vài phút')
+  const [greeting, setGreeting]         = useState('Xin chào! Tôi có thể giúp gì cho bạn?')
   const [position, setPosition]         = useState<'bottom-right' | 'bottom-left'>('bottom-right')
   const [themeMode, setThemeMode]       = useState<'light' | 'dark' | 'auto'>('light')
   const [primaryColor, setPrimaryColor] = useState('#0066FF')
@@ -114,7 +115,7 @@ export function DemoApp() {
     })
 
     setInitialized(true)
-    addLog('🚀 Widget initialized')
+    addLog(`🚀 Widget initialized | url=${wsUrl} | title="${sdkConfig.title ?? ''}" | pos=${sdkConfig.position ?? 'bottom-right'} | theme=${sdkConfig.theme?.mode ?? 'light'} | types=[${[...(sdkConfig.visibleMessageTypes ?? ['message'])].join(',')}] | refs=${sdkConfig.showReferences ?? true} | attach=${sdkConfig.attachments?.enabled ?? false} | fields=${sdkConfig.fields?.length ?? 0}`)
   }
 
   // ── Field editor ───────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ export function DemoApp() {
       ],
     } : {}),
     showReferences,
+    ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
 
@@ -214,6 +216,9 @@ export function DemoApp() {
 
             <label className="demo-label">Phụ đề</label>
             <input className="demo-input" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+
+            <label className="demo-label">Lời chào (greeting)</label>
+            <input className="demo-input" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="Để trống nếu không dùng" />
 
             <div className="demo-row">
               <div className="demo-col">
