@@ -228,7 +228,7 @@ export function useSocket() {
     socket.on('agent:typing', () => {
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
-      typingTimeout = setTimeout(() => setAgentTyping(false), 3000)
+      typingTimeout = setTimeout(() => setAgentTyping(false), 8000)
     })
 
     socket.on('message:new', (payload: ServerMessage) => {
