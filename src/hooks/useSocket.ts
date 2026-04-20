@@ -184,9 +184,8 @@ export function useSocket() {
           setPhase('chat')
         })
       } else {
-        // Anonymous / new session — không có history để check, inject greeting ngay
+        // Anonymous / new session — greeting sẽ inject sau loadHistory (qua presence:update)
         setPhase('chat')
-        injectGreeting()
       }
     })
 
