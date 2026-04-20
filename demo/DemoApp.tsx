@@ -115,7 +115,7 @@ export function DemoApp() {
     })
 
     setInitialized(true)
-    addLog(`🚀 Widget initialized | url=${wsUrl} | title="${sdkConfig.title ?? ''}" | pos=${sdkConfig.position ?? 'bottom-right'} | theme=${sdkConfig.theme?.mode ?? 'light'} | types=[${[...(sdkConfig.visibleMessageTypes ?? ['message'])].join(',')}] | refs=${sdkConfig.showReferences ?? true} | attach=${sdkConfig.attachments?.enabled ?? false} | fields=${sdkConfig.fields?.length ?? 0}`)
+    addLog(`🚀 Widget initialized | v${StackAIChat.version} | url=${wsUrl} | title="${sdkConfig.title ?? ''}" | pos=${sdkConfig.position ?? 'bottom-right'} | theme=${sdkConfig.theme?.mode ?? 'light'} | types=[${[...(sdkConfig.visibleMessageTypes ?? ['message'])].join(',')}] | refs=${sdkConfig.showReferences ?? true} | attach=${sdkConfig.attachments?.enabled ?? false} | fields=${sdkConfig.fields?.length ?? 0}`)
   }
 
   // ── Field editor ───────────────────────────────────────────────────────────

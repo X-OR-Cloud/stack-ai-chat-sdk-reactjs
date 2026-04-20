@@ -16,6 +16,8 @@ let cleanupThemeWatcher: (() => void) | null = null
 let currentConfig: SDKConfig | null = null
 
 export const StackAIChat = {
+  version: SDK_VERSION,
+
   init(config: SDKConfig): void {
     if (root) {
       console.warn('[StackAIChat] Already initialized. Call destroy() first or use updateConfig().')
