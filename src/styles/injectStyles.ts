@@ -17,8 +17,6 @@ export const SDK_STYLES = /* css */`
   --sai-border-focus: #0066FF;
   --sai-bubble-user-bg: #0066FF;
   --sai-bubble-user-text: #ffffff;
-  --sai-bubble-agent-bg: #f0f2f5;
-  --sai-bubble-agent-text: #1a1a2e;
   --sai-online: #22c55e;
   --sai-offline: #9ca3af;
   --sai-error: #ef4444;
@@ -32,6 +30,14 @@ export const SDK_STYLES = /* css */`
   --sai-radius-full: 9999px;
   --sai-transition: 200ms ease;
   --sai-z: 999999;
+  --sai-collapsible-bg: #f5f7fa;
+  --sai-collapsible-bg-hover: #eef1f6;
+  --sai-collapsible-text: #6b7280;
+  --sai-collapsible-border: #e5e7eb;
+  --sai-collapsible-body-bg: #fafbfc;
+  --sai-notice-bg: #eff6ff;
+  --sai-notice-border: #bfdbfe;
+  --sai-notice-text: #3b82f6;
 }
 
 /* ── Variables: Dark ────────────────────────────────────────────────────── */
@@ -49,11 +55,17 @@ export const SDK_STYLES = /* css */`
   --sai-border-focus: #3b82f6;
   --sai-bubble-user-bg: #3b82f6;
   --sai-bubble-user-text: #ffffff;
-  --sai-bubble-agent-bg: #2d3748;
-  --sai-bubble-agent-text: #f1f5f9;
   --sai-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
   --sai-shadow-md: 0 4px 16px rgba(0,0,0,0.4);
   --sai-shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --sai-collapsible-bg: #1e2a3a;
+  --sai-collapsible-bg-hover: #243040;
+  --sai-collapsible-text: #94a3b8;
+  --sai-collapsible-border: #2d3748;
+  --sai-collapsible-body-bg: #192030;
+  --sai-notice-bg: #1e2d45;
+  --sai-notice-border: #2563eb;
+  --sai-notice-text: #60a5fa;
 }
 
 /* ── Base reset ─────────────────────────────────────────────────────────── */
@@ -85,9 +97,11 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .chat-button-wrapper {
   position: fixed; bottom: 24px; z-index: var(--sai-z);
   display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  transition: opacity var(--sai-transition), visibility var(--sai-transition);
 }
 .chat-button-wrapper.bottom-right { right: 24px; align-items: flex-end; }
 .chat-button-wrapper.bottom-left  { left: 24px;  align-items: flex-start; }
+.chat-button-wrapper.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 .chat-button {
   width: 56px; height: 56px; border-radius: var(--sai-radius-full);
   background-color: var(--sai-primary); color: var(--sai-primary-text);
@@ -116,8 +130,8 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 
 /* ── ChatWindow ─────────────────────────────────────────────────────────── */
 .chat-window {
-  position: fixed; bottom: 92px;
-  width: 360px; height: 560px; max-height: calc(100vh - 120px);
+  position: fixed; bottom: 24px;
+  width: 360px; height: 560px; max-height: calc(100vh - 48px);
   z-index: var(--sai-z);
   display: flex; flex-direction: column;
   border-radius: var(--sai-radius); overflow: hidden;
@@ -208,48 +222,90 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 /* ── MessageList ────────────────────────────────────────────────────────── */
 .message-list {
   flex: 1; overflow-y: auto; padding: 16px;
-  display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth;
+  display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth;
 }
 .message-list::-webkit-scrollbar { width: 4px; }
 .message-list::-webkit-scrollbar-track { background: transparent; }
 .message-list::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 4px; }
+
+/* ── Message rows ───────────────────────────────────────────────────────── */
 .message-row { display: flex; flex-direction: column; animation: sai-fade-in 200ms ease; }
 .message-row.user      { align-items: flex-end; }
-.message-row.assistant { align-items: flex-start; }
+.message-row.assistant { align-items: flex-start; width: 100%; }
+
+/* ── User bubble ────────────────────────────────────────────────────────── */
 .message-bubble {
   max-width: 78%; padding: 10px 14px;
   border-radius: var(--sai-radius);
   font-size: 14px; line-height: 1.55;
   word-break: break-word; white-space: pre-wrap; position: relative;
 }
-.message-row.assistant .message-bubble { white-space: normal; }
-.message-row.user      .message-bubble { background-color: var(--sai-bubble-user-bg);  color: var(--sai-bubble-user-text);  border-bottom-right-radius: var(--sai-radius-xs); }
-.message-row.assistant .message-bubble { background-color: var(--sai-bubble-agent-bg); color: var(--sai-bubble-agent-text); border-bottom-left-radius: var(--sai-radius-xs); }
+.message-row.user .message-bubble { background-color: var(--sai-bubble-user-bg); color: var(--sai-bubble-user-text); border-bottom-right-radius: var(--sai-radius-xs); }
 .message-row.user .message-bubble.status-failed { background-color: color-mix(in srgb, var(--sai-error) 80%, transparent); }
-.message-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; padding: 0 4px; }
+
+/* ── Agent full-width content (no bubble) ───────────────────────────────── */
+.agent-content {
+  width: 100%; font-size: 14px; line-height: 1.65;
+  color: var(--sai-text); word-break: break-word;
+}
+
+/* ── Timestamp / meta ───────────────────────────────────────────────────── */
+.message-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 0 2px; }
 .message-time { font-size: 11px; color: var(--sai-text-muted); }
 .message-status-icon { font-size: 11px; color: var(--sai-text-muted); }
 .message-status-icon.failed { color: var(--sai-error); }
+
+/* ── Attachments ────────────────────────────────────────────────────────── */
 .message-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .message-attachment-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: var(--sai-radius-sm); background-color: rgba(0,0,0,0.12); font-size: 12px; max-width: 180px; overflow: hidden; }
 .message-attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .message-attachment-image { max-width: 200px; max-height: 160px; border-radius: var(--sai-radius-sm); object-fit: cover; margin-top: 6px; }
 
-/* ── Message type badges (thinking, tool_use, etc.) ───────────────────── */
-.message-type-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 600; margin-bottom: 4px;
-  padding: 2px 8px; border-radius: var(--sai-radius-full);
-  background: rgba(0,0,0,0.08); color: var(--sai-text-muted);
-  width: fit-content;
-}
-.message-type-badge__icon { font-size: 12px; }
-.message-type-badge__label { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
-.message-bubble--thinking { opacity: 0.8; font-style: italic; border-left: 3px solid var(--sai-text-muted); }
-.message-bubble--tool_use { border-left: 3px solid var(--sai-primary); }
-.message-bubble--tool_result { border-left: 3px solid var(--sai-online); }
-.message-bubble--notice { border-left: 3px solid var(--sai-warning); }
-.message-bubble--system { border-left: 3px solid var(--sai-text-muted); opacity: 0.7; font-size: 12px; }
+/* ── Collapsible block (thinking / tool_use / tool_result) ──────────────── */
+.collapsible-block { width: 100%; border: 1px solid var(--sai-collapsible-border); border-radius: var(--sai-radius-sm); overflow: hidden; font-size: 13px; }
+.collapsible-block__trigger { width: 100%; display: flex; align-items: center; gap: 6px; padding: 7px 10px; background-color: var(--sai-collapsible-bg); color: var(--sai-collapsible-text); cursor: pointer; text-align: left; transition: background-color var(--sai-transition); }
+.collapsible-block__trigger:hover { background-color: var(--sai-collapsible-bg-hover); }
+.collapsible-block__icon { font-size: 13px; line-height: 1; flex-shrink: 0; }
+.collapsible-block__label { flex: 1; font-size: 12px; font-weight: 500; letter-spacing: 0.01em; }
+.collapsible-block__chevron { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.6; transition: transform var(--sai-transition); }
+.collapsible-block__trigger.is-open .collapsible-block__chevron { transform: rotate(90deg); }
+.collapsible-block__body { padding: 10px 12px; background-color: var(--sai-collapsible-body-bg); color: var(--sai-text); font-size: 13px; line-height: 1.6; border-top: 1px solid var(--sai-collapsible-border); word-break: break-word; }
+
+/* ── Notice banner ──────────────────────────────────────────────────────── */
+.notice-banner { width: 100%; display: flex; align-items: flex-start; gap: 7px; padding: 8px 12px; background-color: var(--sai-notice-bg); border: 1px solid var(--sai-notice-border); border-radius: var(--sai-radius-sm); }
+.notice-banner__icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+.notice-banner__content { flex: 1; color: var(--sai-notice-text); font-size: 12px; line-height: 1.5; }
+
+/* ── Sources panel ──────────────────────────────────────────────────────── */
+.sources-panel { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; width: 100%; }
+.sources-panel__label { font-size: 11px; color: var(--sai-text-muted); font-weight: 500; }
+.sources-panel__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.source-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--sai-radius-full); background-color: var(--sai-surface); border: 1px solid var(--sai-border); color: var(--sai-text-muted); font-size: 11px; cursor: pointer; transition: background-color var(--sai-transition), color var(--sai-transition), border-color var(--sai-transition); max-width: 160px; }
+.source-chip:hover { background-color: var(--sai-surface-hover); color: var(--sai-text); border-color: var(--sai-primary); }
+.source-chip__icon { width: 12px; height: 12px; flex-shrink: 0; }
+.source-chip__icon svg { width: 12px; height: 12px; }
+.source-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-chip__score { flex-shrink: 0; opacity: 0.7; font-size: 10px; }
+
+/* Source detail modal */
+.source-modal-overlay { position: fixed; inset: 0; z-index: calc(var(--sai-z) + 1); background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; animation: sai-fade-in 150ms ease; }
+.source-modal { background-color: var(--sai-bg); border-radius: var(--sai-radius); box-shadow: var(--sai-shadow-lg); border: 1px solid var(--sai-border); width: 100%; max-width: 360px; max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; animation: sai-fade-in 150ms ease; }
+.source-modal__header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--sai-border); flex-shrink: 0; }
+.source-modal__icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--sai-primary); }
+.source-modal__icon svg { width: 16px; height: 16px; }
+.source-modal__title { flex: 1; font-size: 13px; font-weight: 600; color: var(--sai-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-modal__score { font-size: 11px; color: var(--sai-text-muted); flex-shrink: 0; background-color: var(--sai-surface); padding: 2px 6px; border-radius: var(--sai-radius-full); }
+.source-modal__close { flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: var(--sai-radius-xs); color: var(--sai-text-muted); transition: color var(--sai-transition); }
+.source-modal__close:hover { color: var(--sai-text); }
+.source-modal__close svg { width: 14px; height: 14px; }
+.source-modal__url { display: block; padding: 6px 14px; font-size: 11px; color: var(--sai-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--sai-border); flex-shrink: 0; }
+.source-modal__url:hover { text-decoration: underline; }
+.source-modal__content { flex: 1; overflow-y: auto; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: var(--sai-text); word-break: break-word; }
+.source-modal__content.md-body { white-space: normal; }
+.source-modal__content .md-table { font-size: 12px; }
+.source-modal__content .md-code-block { font-size: 11px; }
+.source-modal__content::-webkit-scrollbar { width: 4px; }
+.source-modal__content::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 4px; }
 
 /* ── Markdown body (agent messages) ────────────────────────────────────── */
 .md-body { display: flex; flex-direction: column; gap: 6px; }
@@ -315,71 +371,6 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .input-action-btn.send:hover:not(:disabled) { background-color: var(--sai-primary-hover); }
 .input-action-btn svg { width: 18px; height: 18px; }
 .file-input-hidden { display: none; }
-
-/* ── Sources panel ──────────────────────────────────────────────────────── */
-.sources-panel {
-  display: flex; flex-direction: column; gap: 4px;
-  margin-top: 4px; padding: 0 2px; max-width: 78%;
-}
-.sources-panel__label {
-  font-size: 11px; color: var(--sai-text-muted); font-weight: 500;
-}
-.sources-panel__chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.source-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: var(--sai-radius-full);
-  background-color: var(--sai-surface); border: 1px solid var(--sai-border);
-  color: var(--sai-text-muted); font-size: 11px; cursor: pointer;
-  transition: background-color var(--sai-transition), color var(--sai-transition), border-color var(--sai-transition);
-  max-width: 160px;
-}
-.source-chip:hover { background-color: var(--sai-surface-hover); color: var(--sai-text); border-color: var(--sai-primary); }
-.source-chip__icon { width: 12px; height: 12px; flex-shrink: 0; }
-.source-chip__icon svg { width: 12px; height: 12px; }
-.source-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.source-chip__score { flex-shrink: 0; opacity: 0.7; font-size: 10px; }
-
-/* Source detail modal */
-.source-modal-overlay {
-  position: fixed; inset: 0; z-index: calc(var(--sai-z) + 1);
-  background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center;
-  padding: 16px;
-  animation: sai-fade-in 150ms ease;
-}
-.source-modal {
-  background-color: var(--sai-bg); border-radius: var(--sai-radius);
-  box-shadow: var(--sai-shadow-lg); border: 1px solid var(--sai-border);
-  width: 100%; max-width: 360px; max-height: 70vh;
-  display: flex; flex-direction: column; overflow: hidden;
-  animation: sai-fade-in 150ms ease;
-}
-.source-modal__header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 14px; border-bottom: 1px solid var(--sai-border); flex-shrink: 0;
-}
-.source-modal__icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--sai-primary); }
-.source-modal__icon svg { width: 16px; height: 16px; }
-.source-modal__title { flex: 1; font-size: 13px; font-weight: 600; color: var(--sai-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.source-modal__score { font-size: 11px; color: var(--sai-text-muted); flex-shrink: 0; background-color: var(--sai-surface); padding: 2px 6px; border-radius: var(--sai-radius-full); }
-.source-modal__close { flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: var(--sai-radius-xs); color: var(--sai-text-muted); transition: color var(--sai-transition); }
-.source-modal__close:hover { color: var(--sai-text); }
-.source-modal__close svg { width: 14px; height: 14px; }
-.source-modal__url {
-  display: block; padding: 6px 14px; font-size: 11px;
-  color: var(--sai-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  border-bottom: 1px solid var(--sai-border); flex-shrink: 0;
-}
-.source-modal__url:hover { text-decoration: underline; }
-.source-modal__content {
-  flex: 1; overflow-y: auto; padding: 12px 14px;
-  font-size: 13px; line-height: 1.6; color: var(--sai-text);
-  word-break: break-word;
-}
-.source-modal__content.md-body { white-space: normal; }
-.source-modal__content .md-table { font-size: 12px; }
-.source-modal__content .md-code-block { font-size: 11px; }
-.source-modal__content::-webkit-scrollbar { width: 4px; }
-.source-modal__content::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 4px; }
 
 /* ── TypingIndicator ────────────────────────────────────────────────────── */
 .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 12px 16px; width: fit-content; }

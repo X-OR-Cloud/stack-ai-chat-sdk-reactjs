@@ -35,7 +35,7 @@
   align-items: flex-start;
 }
 
-/* ── Bubble ──────────────────────────────────────────────────────────────── */
+/* ── Bubble (user only) ──────────────────────────────────────────────────── */
 .message-bubble {
   max-width: 78%;
   padding: 10px 14px;
@@ -53,15 +53,18 @@
   border-bottom-right-radius: var(--sai-radius-xs);
 }
 
-.message-row.assistant .message-bubble {
-  background-color: var(--sai-bubble-agent-bg);
-  color: var(--sai-bubble-agent-text);
-  border-bottom-left-radius: var(--sai-radius-xs);
-}
-
 /* Failed state */
 .message-row.user .message-bubble.status-failed {
   background-color: color-mix(in srgb, var(--sai-error) 80%, transparent);
+}
+
+/* ── Agent full-width content (no bubble) ────────────────────────────────── */
+.agent-content {
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--sai-text);
+  word-break: break-word;
 }
 
 /* ── Timestamp ───────────────────────────────────────────────────────────── */
@@ -70,7 +73,7 @@
   align-items: center;
   gap: 6px;
   margin-top: 3px;
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
 .message-time {
@@ -85,6 +88,94 @@
 
 .message-status-icon.failed {
   color: var(--sai-error);
+}
+
+/* ── Collapsible block (thinking / tool_use / tool_result) ──────────────── */
+.collapsible-block {
+  width: 100%;
+  border: 1px solid var(--sai-collapsible-border);
+  border-radius: var(--sai-radius-sm);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.collapsible-block__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background-color: var(--sai-collapsible-bg);
+  color: var(--sai-collapsible-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--sai-transition);
+}
+
+.collapsible-block__trigger:hover {
+  background-color: var(--sai-collapsible-bg-hover);
+}
+
+.collapsible-block__icon {
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.collapsible-block__label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.collapsible-block__chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform var(--sai-transition);
+}
+
+.collapsible-block__trigger.is-open .collapsible-block__chevron {
+  transform: rotate(90deg);
+}
+
+.collapsible-block__body {
+  padding: 10px 12px;
+  background-color: var(--sai-collapsible-body-bg);
+  color: var(--sai-text);
+  font-size: 13px;
+  line-height: 1.6;
+  border-top: 1px solid var(--sai-collapsible-border);
+  word-break: break-word;
+}
+
+/* ── Notice banner ───────────────────────────────────────────────────────── */
+.notice-banner {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 12px;
+  background-color: var(--sai-notice-bg);
+  border: 1px solid var(--sai-notice-border);
+  border-radius: var(--sai-radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sai-text);
+}
+
+.notice-banner__icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.notice-banner__content {
+  flex: 1;
+  color: var(--sai-notice-text);
+  font-size: 12px;
 }
 
 /* ── Attachments in bubble ───────────────────────────────────────────────── */
