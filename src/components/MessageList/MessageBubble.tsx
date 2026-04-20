@@ -50,6 +50,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const showReferences = useChatStore((s) => s.config?.showReferences ?? true)
 
+  // divider — separates history from new session
+  if (message.type === 'divider') {
+    return (
+      <div className="session-divider" role="separator">
+        <span className="session-divider__label">Cuộc trò chuyện mới</span>
+      </div>
+    )
+  }
+
   // notice / system → inline banner, no timestamp
   if (message.type === 'notice' || message.type === 'system') {
     return (

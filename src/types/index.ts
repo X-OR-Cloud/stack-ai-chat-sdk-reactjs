@@ -180,7 +180,7 @@ export interface MessageSource {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice'
+export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
 
 export interface Message {
   /** Local temp id before server confirms */

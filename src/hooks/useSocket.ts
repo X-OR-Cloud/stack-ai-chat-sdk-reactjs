@@ -113,8 +113,19 @@ export function useSocket() {
         })
       if (messages.length) {
         prependMessages(messages)
+        // Divider separates history from new session
+        addMessage({
+          localId: `divider_${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          type: 'divider',
+          status: 'sent',
+          attachments: [],
+          sources: [],
+        })
+        injectGreeting()
       } else {
-        // No history → fresh conversation, show greeting
+        // No history → fresh conversation, show greeting only
         injectGreeting()
       }
     })

@@ -271,6 +271,11 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .collapsible-block__trigger.is-open .collapsible-block__chevron { transform: rotate(90deg); }
 .collapsible-block__body { padding: 10px 12px; background-color: var(--sai-collapsible-body-bg); color: var(--sai-text); font-size: 13px; line-height: 1.6; border-top: 1px solid var(--sai-collapsible-border); word-break: break-word; }
 
+/* ── Session divider ────────────────────────────────────────────────────── */
+.session-divider { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0; }
+.session-divider::before, .session-divider::after { content: ''; flex: 1; height: 1px; background-color: var(--sai-border); }
+.session-divider__label { font-size: 11px; color: var(--sai-text-muted); white-space: nowrap; padding: 0 4px; }
+
 /* ── Notice banner ──────────────────────────────────────────────────────── */
 .notice-banner { width: 100%; display: flex; align-items: flex-start; gap: 7px; padding: 8px 12px; background-color: var(--sai-notice-bg); border: 1px solid var(--sai-notice-border); border-radius: var(--sai-radius-sm); }
 .notice-banner__icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
