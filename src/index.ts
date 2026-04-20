@@ -5,8 +5,7 @@ import { useChatStore } from './store/chatStore'
 import { bridgeSendMessage, unregisterSendMessage, bridgeConnect, unregisterConnect } from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
 import type { SDKConfig } from './types'
-
-declare const __SDK_VERSION__: string
+import { SDK_VERSION } from './version'
 
 // Re-export types for consumers
 export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message } from './types'
@@ -23,7 +22,7 @@ export const StackAIChat = {
       return
     }
 
-    console.info(`[StackAIChat] SDK v${__SDK_VERSION__}`)
+    console.info(`[StackAIChat] SDK v${SDK_VERSION}`)
 
     currentConfig = config
 
