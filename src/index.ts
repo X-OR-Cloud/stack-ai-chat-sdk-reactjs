@@ -14,12 +14,16 @@ let hostEl: HTMLElement | null = null
 let cleanupThemeWatcher: (() => void) | null = null
 let currentConfig: SDKConfig | null = null
 
+declare const __SDK_VERSION__: string
+
 export const StackAIChat = {
   init(config: SDKConfig): void {
     if (root) {
       console.warn('[StackAIChat] Already initialized. Call destroy() first or use updateConfig().')
       return
     }
+
+    console.info(`[StackAIChat] SDK v${__SDK_VERSION__}`)
 
     currentConfig = config
 
