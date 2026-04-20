@@ -19,11 +19,11 @@ declare const __SDK_VERSION__: string
 export const StackAIChat = {
   init(config: SDKConfig): void {
     if (root) {
-      console.warn('[StackAIChat] Already initialized. Call destroy() first or use updateConfig().')
+      console.warn('[SDKChat] Already initialized. Call destroy() first or use updateConfig().')
       return
     }
 
-    console.info(`[StackAIChat] SDK v${__SDK_VERSION__}`)
+    console.info(`[SDKChat] SDK v${__SDK_VERSION__}`)
 
     currentConfig = config
 
@@ -73,7 +73,7 @@ export const StackAIChat = {
 
   updateConfig(partial: Partial<SDKConfig>): void {
     if (!root || !currentConfig) {
-      console.warn('[StackAIChat] Not initialized.')
+      console.warn('[SDKChat] Not initialized.')
       return
     }
     currentConfig = { ...currentConfig, ...partial }
