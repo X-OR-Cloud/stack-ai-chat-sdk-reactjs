@@ -77,7 +77,12 @@ export const useChatStore = create<ChatState>()((set) => ({
     set((state) => ({ messages: [...state.messages, message] })),
 
   prependMessages: (messages) =>
-    set((state) => ({ messages: [...messages, ...state.messages] })),
+    set((state) => {
+      const existingIds = new Set(state.messages.map((m) => m.messageId).filter(Boolean))
+      const deduped = messages.filter((m) => !m.messageId || !existingIds.has(m.messageId))
+      if (!deduped.length) return state
+      return { messages: [...deduped, ...state.messages] }
+    }),
 
   confirmMessage: (localId, messageId, timestamp) =>
     set((state) => ({

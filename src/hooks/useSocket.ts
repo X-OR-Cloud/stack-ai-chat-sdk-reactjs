@@ -96,6 +96,10 @@ export function useSocket() {
     const allowedTypes = config?.visibleMessageTypes ?? ['message']
     const hiddenPatterns = config?.hiddenPatterns ?? []
 
+    // Sync seenIdsRef từ messages đang có trong store (tránh duplicate sau reconnect)
+    const existingMessages = useChatStore.getState().messages
+    existingMessages.forEach((m) => { if (m.messageId) seenIdsRef.current.add(m.messageId) })
+
     socket.emit('conversation:history', { conversationId: convId, limit: 50 }, (res: {
       success: boolean
       data?: ServerMessage[]
@@ -146,11 +150,6 @@ export function useSocket() {
     isConnectingRef.current = true
     setPhase('connecting')
 
-    // Clear stale conversationId từ session trước để không leak sang connection mới
-    if (!config.conversationId) {
-      setConversationId(null)
-    }
-
     const { origin, namespace } = parseWsUrl(config.wsUrl)
 
     const socket = io(`${origin}${namespace}`, {
@@ -177,9 +176,13 @@ export function useSocket() {
       if (knownConvId) {
         socket.emit('conversation:join', { conversationId: knownConvId }, (res: { success: boolean; conversationId?: string }) => {
           if (res.success && res.conversationId) {
+            const currentConvId = useChatStore.getState().conversationId
             setConversationId(res.conversationId)
-            config.onConversationJoined?.(res.conversationId)
-            loadHistory(socket, res.conversationId)
+            // Only load history if this is a new conversation (not a reconnect to same session)
+            if (currentConvId !== res.conversationId) {
+              config.onConversationJoined?.(res.conversationId)
+              loadHistory(socket, res.conversationId)
+            }
           }
           setPhase('chat')
         })
@@ -207,10 +210,18 @@ export function useSocket() {
       config.onPresenceUpdate?.(payload)
 
       if (payload.type === 'anonymous' && payload.conversationId) {
-        // Only assign conversationId and load history if this session doesn't have one yet.
-        // Ignores presence:update events from other anonymous users sharing the same agentId room.
         const currentConvId = useChatStore.getState().conversationId
-        if (currentConvId) return
+
+        // Same conversation reconnect — skip load history, messages already in store
+        if (currentConvId === payload.conversationId) return
+
+        // Different or no conversationId: new session assigned by server.
+        // Clear messages and seenIds so history isn't duplicated across sessions.
+        if (currentConvId && currentConvId !== payload.conversationId) {
+          useChatStore.getState().reset()
+          seenIdsRef.current = new Set()
+          greetingInjectedRef.current = false
+        }
 
         setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
