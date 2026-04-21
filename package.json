@@ -25,7 +25,7 @@
     "preview:demo": "vite preview --config demo/vite.demo.config.ts --outDir demo-dist",
     "type-check": "tsc --noEmit",
     "publish:npm": "npm publish --access public",
-    "sync-version": "node -e \"const v=require('./package.json').version;const fs=require('fs');fs.writeFileSync('src/version.ts',\\`export const SDK_VERSION = '${v}'\\n\\`)\"",
+    "sync-version": "node -e \"const v=require('./package.json').version;require('fs').writeFileSync('src/version.ts',\\\"export const SDK_VERSION = '\\\" + v + \\\"'\\\\n\\\")\"",
     "release:patch": "npm version patch --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
     "release:minor": "npm version minor --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
     "release:major": "npm version major --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags"
