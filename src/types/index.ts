@@ -117,6 +117,9 @@ export interface SDKConfig {
   // Greeting — message shown immediately after connection, before any user input.
   greeting?: string
 
+  // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
+  maxInputLength?: number
+
   // Callbacks
   onOpen?: () => void
   onClose?: () => void

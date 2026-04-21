@@ -123,6 +123,7 @@ export function ChatWindow({ position }: ChatWindowProps) {
           <MessageInput
             onSend={handleSend}
             attachmentsConfig={config.attachments}
+            maxInputLength={config.maxInputLength}
             disabled={isProcessing}
           />
         </>

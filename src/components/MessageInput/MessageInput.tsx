@@ -4,18 +4,23 @@ import { filesToBase64, formatFileSize } from '../../utils/fileToBase64'
 import { useChatStore } from '../../store/chatStore'
 
 const REFERENCE_MAX_LEN = 80
+const DEFAULT_MAX_INPUT = 1000
+const HARD_MAX_INPUT = 2000
 
 interface MessageInputProps {
   onSend: (content: string, attachments: AttachmentItem[]) => void
   attachmentsConfig?: AttachmentsConfig
+  maxInputLength?: number
   disabled?: boolean
 }
 
 export function MessageInput({
   onSend,
   attachmentsConfig,
+  maxInputLength,
   disabled = false,
 }: MessageInputProps) {
+  const maxLen = Math.min(maxInputLength ?? DEFAULT_MAX_INPUT, HARD_MAX_INPUT)
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<AttachmentItem[]>([])
   const [isUploading, setIsUploading] = useState(false)
@@ -45,8 +50,10 @@ export function MessageInput({
   }
 
   function handleTextChange(e: ChangeEvent<HTMLTextAreaElement>) {
-    setText(e.target.value)
-    autoResize()
+    if (e.target.value.length <= maxLen) {
+      setText(e.target.value)
+      autoResize()
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -105,7 +112,8 @@ export function MessageInput({
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled && !isUploading
+  const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled && !isUploading && text.length <= maxLen
+  const showCounter = text.length >= maxLen - 150
 
   return (
     <div className="message-input-area">
@@ -165,6 +173,12 @@ export function MessageInput({
 
       {uploadError && (
         <span style={{ fontSize: '12px', color: 'var(--sai-error)' }}>{uploadError}</span>
+      )}
+
+      {showCounter && (
+        <span style={{ fontSize: '11px', color: text.length >= maxLen ? 'var(--sai-error)' : 'var(--sai-text-muted, #888)', textAlign: 'right', display: 'block' }}>
+          {text.length}/{maxLen}
+        </span>
       )}
 
       <div className="message-input-row">

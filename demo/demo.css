@@ -77,8 +77,9 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 }
 
 .demo-logo__icon { font-size: 26px; }
-.demo-logo__title { font-weight: 700; font-size: 15px; }
+.demo-logo__title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; }
 .demo-logo__sub { font-size: 12px; color: var(--c-muted); margin-top: 1px; }
+.demo-version-badge { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--c-primary, #0066FF); color: #fff; letter-spacing: 0.3px; }
 
 /* ── Form ──────────────────────────────────────────────────────────────────── */
 .demo-form {

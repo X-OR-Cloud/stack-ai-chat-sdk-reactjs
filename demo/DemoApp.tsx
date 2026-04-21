@@ -46,6 +46,7 @@ export function DemoApp() {
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
   const [showReferences, setShowReferences] = useState(true)
+  const [maxInputLength, setMaxInputLength] = useState(1000)
   const [fields, setFields]             = useState<FieldRow[]>(DEFAULT_FIELDS)
 
   // Visible message types
@@ -154,6 +155,7 @@ export function DemoApp() {
       ],
     } : {}),
     showReferences,
+    maxInputLength,
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
@@ -169,7 +171,10 @@ export function DemoApp() {
         <div className="demo-logo">
           <span className="demo-logo__icon">💬</span>
           <div>
-            <div className="demo-logo__title">Stack AI Chat SDK</div>
+            <div className="demo-logo__title">
+              Stack AI Chat SDK
+              <span className="demo-version-badge">v{StackAIChat.version}</span>
+            </div>
             <div className="demo-logo__sub">Demo & Config Playground</div>
           </div>
         </div>
@@ -268,6 +273,20 @@ export function DemoApp() {
               <input type="checkbox" checked={showReferences} onChange={(e) => setShowReferences(e.target.checked)} />
               <span>Hiển thị tài liệu tham chiếu</span>
             </label>
+
+            <label className="demo-label">Giới hạn ký tự input (max 2000)</label>
+            <div className="demo-row" style={{ alignItems: 'center', gap: '8px' }}>
+              <input
+                type="range"
+                min={100}
+                max={2000}
+                step={100}
+                value={maxInputLength}
+                onChange={(e) => setMaxInputLength(Number(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: '40px', textAlign: 'right', fontSize: '13px', fontWeight: 600 }}>{maxInputLength}</span>
+            </div>
           </section>
 
           {/* Visible message types */}
