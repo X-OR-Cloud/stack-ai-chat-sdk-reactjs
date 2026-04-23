@@ -102,6 +102,14 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
+  resetSession: () =>
+    set({
+      conversationId: null,
+      messages: [],
+      isAgentTyping: false,
+      reference: null,
+    }),
+
   reset: () =>
     set({
       isOpen: false,

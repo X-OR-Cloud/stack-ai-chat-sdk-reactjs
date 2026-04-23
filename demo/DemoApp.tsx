@@ -1,8 +1,37 @@
 import { useState, useRef } from 'react'
 import { StackAIChat } from '../src/index'
-import type { MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
+import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
 import { TestRunner } from './testRunner/TestRunner'
 import xorStackAiLogo from './xor-stack-ai.png'
+
+// ─── Log entry ────────────────────────────────────────────────────────────────
+
+export type LogEventKind =
+  | 'widget:init'
+  | 'widget:destroy'
+  | 'socket:connected'
+  | 'socket:disconnected'
+  | 'socket:error'
+  | 'conversation:joined'
+  | 'presence:update'
+  | 'widget:open'
+  | 'widget:close'
+  | 'form:submit'
+  | 'message:new'
+  | 'message:raw'
+  | 'reference:set'
+
+export interface LogEntry {
+  id: number
+  ts: number               // Unix ms
+  kind: LogEventKind
+  // human-readable summary
+  summary: string
+  // structured payload — everything that could help debug
+  data?: Record<string, unknown>
+}
+
+let _logSeq = 0
 
 const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/ws/chat'
 const DEFAULT_TOKEN = ''
@@ -67,17 +96,26 @@ export function DemoApp() {
   const [customStylesEnabled, setCustomStylesEnabled] = useState(false)
   const [customGlobalCss, setCustomGlobalCss] = useState(':host {\n  --sai-primary: #7c3aed;\n  --sai-primary-hover: #6d28d9;\n}')
   const [initialized, setInitialized]   = useState(false)
-  const [log, setLog]                   = useState<string[]>([])
+  const [log, setLog]                   = useState<LogEntry[]>([])
   const logRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab]       = useState<'preview' | 'test'>('preview')
+  const [copyFeedback, setCopyFeedback] = useState(false)
 
   const tokenInfo = decodeJwtPayload(token)
 
-  function addLog(msg: string) {
+  function addLog(kind: LogEventKind, summary: string, data?: Record<string, unknown>) {
     setLog((prev) => {
-      const next = [...prev, `[${new Date().toLocaleTimeString('vi-VN')}] ${msg}`]
+      const entry: LogEntry = { id: ++_logSeq, ts: Date.now(), kind, summary, data }
       setTimeout(() => logRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }), 50)
-      return next
+      return [...prev, entry]
+    })
+  }
+
+  function copyLog() {
+    const text = JSON.stringify(log, null, 2)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 1500)
     })
   }
 
@@ -85,7 +123,7 @@ export function DemoApp() {
     if (initialized) {
       StackAIChat.destroy()
       setInitialized(false)
-      addLog('Widget destroyed.')
+      addLog('widget:destroy', '🗑 Widget destroyed')
       return
     }
 
@@ -96,27 +134,93 @@ export function DemoApp() {
 
     StackAIChat.init({
       ...(sdkConfig as SDKConfig),
-      onConnected:          () => addLog('✅ Socket connected'),
-      onConversationJoined: (id) => addLog(`📨 Conversation ready → ${id}`),
-      onPresenceUpdate:     (p: PresenceUpdatePayload) => addLog(`👁 presence:update → ${JSON.stringify(p)}`),
-      onDisconnected:       () => addLog('🔌 Socket disconnected'),
-      onError:              (msg) => addLog(`❌ Error: ${msg}`),
-      onOpen:               () => addLog('📂 Widget opened'),
-      onClose:              () => addLog('📁 Widget closed'),
-      onFormSubmit:         (data) => addLog(`📋 Form submitted: ${JSON.stringify(data)}`),
-      onMessage:            (msg) => {
-        const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} source(s)` : ''
-        addLog(`💬 New message [${msg.role}/${msg.type}]: ${msg.content.slice(0, 60)}${sourcesInfo}`)
+      onConnected: () =>
+        addLog('socket:connected', '✅ Socket connected'),
+
+      onConversationJoined: (id) =>
+        addLog('conversation:joined', `📨 Conversation ready → ${id}`, { conversationId: id }),
+
+      onPresenceUpdate: (p: PresenceUpdatePayload) =>
+        addLog('presence:update', `👁 presence:update [${p.type}] ${p.status}`, {
+          type: p.type,
+          status: p.status,
+          agentId: p.agentId,
+          userId: p.userId,
+          conversationId: p.conversationId,
+          timestamp: p.timestamp,
+        }),
+
+      onDisconnected: () =>
+        addLog('socket:disconnected', '🔌 Socket disconnected'),
+
+      onError: (msg) =>
+        addLog('socket:error', `❌ Error: ${msg}`, { message: msg }),
+
+      onOpen: () =>
+        addLog('widget:open', '📂 Widget opened'),
+
+      onClose: () =>
+        addLog('widget:close', '📁 Widget closed'),
+
+      onFormSubmit: (data) =>
+        addLog('form:submit', `📋 Form submitted`, { fields: data }),
+
+      onMessage: (msg: Message) => {
+        const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} src` : ''
+        addLog('message:new', `💬 [${msg.role}/${msg.type}] ${msg.content.slice(0, 60)}${sourcesInfo}`, {
+          messageId: msg.messageId,
+          localId: msg.localId,
+          conversationId: msg.conversationId,
+          role: msg.role,
+          type: msg.type,
+          status: msg.status,
+          contentLength: msg.content.length,
+          contentPreview: msg.content.slice(0, 200),
+          sourcesCount: msg.sources.length,
+          sources: msg.sources,
+          attachmentsCount: msg.attachments.length,
+          timestamp: msg.timestamp,
+        })
       },
-      onRawMessage:         (raw) => {
-        const { role, type, content, skipAgent, _id, ...rest } = raw as any
-        const preview = typeof content === 'string' ? content.slice(0, 80) : ''
-        addLog(`🔍 RAW [${role}/${type ?? 'undefined'}] skip=${skipAgent ?? false} id=${_id ?? '?'}: ${preview}${Object.keys(rest).length ? ' +' + Object.keys(rest).join(',') : ''}`)
+
+      onRawMessage: (raw) => {
+        const r = raw as Record<string, unknown>
+        const content = typeof r.content === 'string' ? r.content : undefined
+        addLog('message:raw', `🔍 RAW [${r.role}/${r.type ?? '?'}] skip=${r.skipAgent ?? false} id=${r._id ?? '?'}: ${content?.slice(0, 60) ?? ''}`, {
+          _id: r._id,
+          role: r.role,
+          type: r.type,
+          skipAgent: r.skipAgent,
+          contentLength: content?.length,
+          contentPreview: content?.slice(0, 200),
+          conversationId: r.conversationId,
+          timestamp: r.timestamp,
+          sources: r.sources,
+          attachments: r.attachments,
+          extraKeys: Object.keys(r).filter(
+            (k) => !['_id','role','type','skipAgent','content','conversationId','timestamp','sources','attachments'].includes(k)
+          ),
+          fullPayload: r,
+        })
       },
     })
 
     setInitialized(true)
-    addLog(`🚀 Widget initialized | v${StackAIChat.version} | url=${wsUrl} | title="${sdkConfig.title ?? ''}" | pos=${sdkConfig.position ?? 'bottom-right'} | theme=${sdkConfig.theme?.mode ?? 'light'} | types=[${[...(sdkConfig.visibleMessageTypes ?? ['message'])].join(',')}] | refs=${sdkConfig.showReferences ?? true} | attach=${sdkConfig.attachments?.enabled ?? false} | fields=${sdkConfig.fields?.length ?? 0}`)
+    addLog('widget:init', `🚀 Widget initialized v${StackAIChat.version}`, {
+      version: StackAIChat.version,
+      wsUrl,
+      title: sdkConfig.title,
+      position: sdkConfig.position ?? 'bottom-right',
+      themeMode: sdkConfig.theme?.mode ?? 'light',
+      primaryColor: sdkConfig.theme?.primaryColor,
+      visibleMessageTypes: sdkConfig.visibleMessageTypes ?? ['message'],
+      showReferences: sdkConfig.showReferences ?? true,
+      attachmentsEnabled: sdkConfig.attachments?.enabled ?? false,
+      fieldsCount: sdkConfig.fields?.length ?? 0,
+      persistSession: sdkConfig.session?.persist ?? false,
+      maxInputLength: sdkConfig.maxInputLength ?? 1000,
+      greeting: sdkConfig.greeting,
+    })
   }
 
   // ── Field editor ───────────────────────────────────────────────────────────
@@ -375,8 +479,8 @@ export function DemoApp() {
 
           {initialized && (
             <div className="demo-quick-actions">
-              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.open(); addLog('open() called') }}>Open</button>
-              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.close(); addLog('close() called') }}>Close</button>
+              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.open(); addLog('widget:open', '📂 open() called manually') }}>Open</button>
+              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.close(); addLog('widget:close', '📁 close() called manually') }}>Close</button>
             </div>
           )}
         </div>
@@ -427,7 +531,7 @@ export function DemoApp() {
                         if (text) {
                           StackAIChat.setReference(text)
                           StackAIChat.open()
-                          addLog(`📌 Reference set: "${text.slice(0, 50)}${text.length > 50 ? '…' : ''}"`)
+                          addLog('reference:set', `📌 Reference set: "${text.slice(0, 50)}${text.length > 50 ? '…' : ''}"`, { text, length: text.length })
                           sel?.removeAllRanges()
                         }
                       }}
@@ -478,13 +582,31 @@ export function DemoApp() {
             {/* Event log */}
             <div className="demo-log-panel">
               <div className="demo-log-header">
-                <span>📡 Event Log</span>
-                <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
+                <span>📡 Event Log <span className="demo-log-count">{log.length > 0 ? `(${log.length})` : ''}</span></span>
+                <div className="demo-log-actions">
+                  <button
+                    className="demo-btn demo-btn--ghost demo-btn--xs"
+                    onClick={copyLog}
+                    disabled={log.length === 0}
+                    title="Copy toàn bộ log dạng JSON array để debug"
+                  >
+                    {copyFeedback ? '✅ Copied!' : '📋 Copy JSON'}
+                  </button>
+                  <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
+                </div>
               </div>
               <div className="demo-log" ref={logRef}>
                 {log.length === 0
                   ? <span className="demo-log__empty">Chưa có sự kiện nào...</span>
-                  : log.map((l, i) => <div key={i} className="demo-log__line">{l}</div>)
+                  : log.map((entry) => (
+                    <div key={entry.id} className={`demo-log__line demo-log__line--${entry.kind.split(':')[0]}`}>
+                      <span className="demo-log__time">{new Date(entry.ts).toLocaleTimeString('vi-VN')}</span>
+                      {' '}
+                      <span className="demo-log__kind">[{entry.kind}]</span>
+                      {' '}
+                      {entry.summary}
+                    </div>
+                  ))
                 }
               </div>
             </div>

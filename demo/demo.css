@@ -288,11 +288,11 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 
 /* ── Event log ─────────────────────────────────────────────────────────────── */
 .demo-log-panel {
-  height: 160px;
+  height: 190px;
   flex-shrink: 0;
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
-  background: #1a1a2e;
+  background: #0f0f1a;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -302,40 +302,62 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
 }
+.demo-log-count { color: #475569; font-weight: 400; margin-left: 2px; }
+.demo-log-actions { display: flex; gap: 6px; }
 .demo-log-header .demo-btn {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
   border-color: rgba(255,255,255,0.1);
   color: #94a3b8;
+  font-size: 11px;
 }
-.demo-log-header .demo-btn:hover { background: rgba(255,255,255,0.15); }
+.demo-log-header .demo-btn:hover:not(:disabled) { background: rgba(255,255,255,0.13); }
+.demo-log-header .demo-btn:disabled { opacity: 0.35; cursor: default; }
 
 .demo-log {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 14px;
+  padding: 6px 12px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 .demo-log::-webkit-scrollbar { width: 3px; }
-.demo-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+.demo-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
 
 .demo-log__line {
-  font-size: 12px;
-  color: #a5f3a5;
+  font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', monospace;
   white-space: pre-wrap;
   word-break: break-all;
+  color: #a5f3a5;
 }
+.demo-log__time { color: #475569; }
+.demo-log__kind { color: #64748b; }
 
-.demo-log__empty { font-size: 12px; color: #475569; font-style: italic; }
+/* colour by event group */
+.demo-log__line--socket  { color: #67e8f9; }
+.demo-log__line--socket .demo-log__kind  { color: #0e7490; }
+.demo-log__line--conversation { color: #86efac; }
+.demo-log__line--conversation .demo-log__kind { color: #15803d; }
+.demo-log__line--presence { color: #c4b5fd; }
+.demo-log__line--presence .demo-log__kind { color: #7c3aed; }
+.demo-log__line--widget  { color: #fde68a; }
+.demo-log__line--widget .demo-log__kind  { color: #b45309; }
+.demo-log__line--form    { color: #fb923c; }
+.demo-log__line--form .demo-log__kind    { color: #c2410c; }
+.demo-log__line--message { color: #a5f3a5; }
+.demo-log__line--message .demo-log__kind { color: #166534; }
+.demo-log__line--reference { color: #f9a8d4; }
+.demo-log__line--reference .demo-log__kind { color: #9d174d; }
+
+.demo-log__empty { font-size: 11px; color: #334155; font-style: italic; }
 
 /* ── Token info panel ───────────────────────────────────────────────────── */
 .demo-token-info {
