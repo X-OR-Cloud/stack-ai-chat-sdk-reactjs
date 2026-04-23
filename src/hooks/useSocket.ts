@@ -65,6 +65,7 @@ function mapServerMessage(payload: ServerMessage): Message {
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const isConnectingRef = useRef(false)
+  const isIntentionalDisconnectRef = useRef(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const greetingInjectedRef = useRef(false)
   const config = useChatStore((s) => s.config)
@@ -195,11 +196,19 @@ export function useSocket() {
     socket.on('disconnect', (reason) => {
       isConnectingRef.current = false
       config.onDisconnected?.()
-      config.onError?.(`Disconnected: ${reason}`)
+      // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
+      // Nếu là intentional disconnect (destroy/close) thì bỏ qua
+      if (!isIntentionalDisconnectRef.current) {
+        config.onError?.(`Disconnected: ${reason}`)
+        // Nếu server cắt kỳ do idle hoặc network, set phase connecting
+        // để UI show spinner thay vì để người dùng gõ vào void
+        setPhase('connecting')
+      }
     })
 
     socket.on('connect_error', (err) => {
       isConnectingRef.current = false
+      // Sau nhiều lần retry thất bại → về form để user có thể reconnect
       setPhase('form')
       config.onError?.(err.message)
     })
@@ -278,11 +287,13 @@ export function useSocket() {
   }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory])
 
   const disconnect = useCallback(() => {
+    isIntentionalDisconnectRef.current = true
     isConnectingRef.current = false
     greetingInjectedRef.current = false
     socketRef.current?.removeAllListeners()
     socketRef.current?.disconnect()
     socketRef.current = null
+    isIntentionalDisconnectRef.current = false
   }, [])
 
   const sendMessage = useCallback((payload: SendMessagePayload) => {
