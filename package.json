@@ -1,6 +1,6 @@
 {
   "name": "@xorcloud/stack-ai-chat-sdk",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Floating chat widget SDK for React apps — powered by Stack AI",
   "type": "module",
   "main": "./dist/index.umd.cjs",
