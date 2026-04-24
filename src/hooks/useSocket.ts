@@ -227,7 +227,7 @@ export function useSocket() {
         // Different or no conversationId: new session assigned by server.
         // Clear messages and seenIds so history isn't duplicated across sessions.
         if (currentConvId && currentConvId !== payload.conversationId) {
-          useChatStore.getState().reset()
+          useChatStore.getState().resetConversation()
           seenIdsRef.current = new Set()
           greetingInjectedRef.current = false
         }
@@ -253,7 +253,7 @@ export function useSocket() {
     socket.on('agent:typing', () => {
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
-      typingTimeout = setTimeout(() => setAgentTyping(false), 8000)
+      typingTimeout = setTimeout(() => setAgentTyping(false), 10000)
     })
 
     socket.on('message:new', (payload: ServerMessage) => {

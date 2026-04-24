@@ -40,6 +40,7 @@ interface ChatState {
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
   reset: () => void
+  resetConversation: () => void
 }
 
 export const useChatStore = create<ChatState>()((set) => ({
@@ -112,5 +113,12 @@ export const useChatStore = create<ChatState>()((set) => ({
       isAgentTyping: false,
       reference: null,
       userFields: {},
+    }),
+
+  resetConversation: () =>
+    set({
+      conversationId: null,
+      messages: [],
+      isAgentTyping: false,
     }),
 }))
