@@ -11,6 +11,7 @@ import type {
 } from '../types'
 
 let typingTimeout: ReturnType<typeof setTimeout> | null = null
+let lastAssistantMessageAt = 0
 
 // wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
 // wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
@@ -271,6 +272,8 @@ export function useSocket() {
     })
 
     socket.on('agent:typing', () => {
+      // Ignore late typing events that arrive after a final assistant message
+      if (Date.now() - lastAssistantMessageAt < 2000) return
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
       typingTimeout = setTimeout(() => setAgentTyping(false), 10000)
@@ -287,17 +290,22 @@ export function useSocket() {
         seenIdsRef.current.add(id)
       }
 
-      // 2. Skip non-user-visible content
+      // 2. Clear typing for any assistant message before type filtering —
+      //    filtered messages (tool_use, thinking, etc.) also signal agent is done
+      if (payload.role === 'assistant' && !payload.skipAgent) {
+        lastAssistantMessageAt = Date.now()
+        setAgentTyping(false)
+        if (typingTimeout) clearTimeout(typingTimeout)
+      }
+
+      // 3. Skip non-user-visible content
       if (payload.role === 'assistant' && payload.skipAgent) return
       const allowedTypes = config?.visibleMessageTypes ?? ['message']
       if (payload.type && !allowedTypes.includes(payload.type as any)) return
       if (isHiddenByPattern(payload.content, config?.hiddenPatterns ?? [])) return
 
-      // 3. Process
+      // 4. Process
       if (payload.role === 'assistant') {
-        setAgentTyping(false)
-        if (typingTimeout) clearTimeout(typingTimeout)
-
         const message = mapServerMessage(payload)
         addMessage(message)
         config.onMessage?.(message)
