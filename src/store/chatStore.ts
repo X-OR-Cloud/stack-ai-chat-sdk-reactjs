@@ -40,6 +40,7 @@ interface ChatState {
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
   reset: () => void
+  resetSession: () => void
 }
 
 export const useChatStore = create<ChatState>()((set) => ({

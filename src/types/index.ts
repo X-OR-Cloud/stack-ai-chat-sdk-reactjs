@@ -126,7 +126,7 @@ export interface SDKConfig {
   onConnected?: () => void
   onConversationJoined?: (conversationId: string) => void
   onDisconnected?: () => void
-  onError?: (message: string) => void
+  onError?: (message: string, detail?: Record<string, unknown>) => void
   onMessage?: (message: Message) => void
   /** Debug: raw WebSocket payload before filtering. Useful for inspecting server data. */
   onRawMessage?: (payload: Record<string, unknown>) => void

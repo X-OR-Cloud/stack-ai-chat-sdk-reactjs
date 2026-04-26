@@ -12,19 +12,18 @@ import type {
 
 let typingTimeout: ReturnType<typeof setTimeout> | null = null
 
-/**
- * NestJS Socket.IO gateway dùng namespace /ws/chat
- * wsUrl ví dụ: "wss://skt.x-or.cloud/ws/chat"
- * → connect tới origin "wss://skt.x-or.cloud" với namespace "/ws/chat"
- */
-function parseWsUrl(wsUrl: string): { origin: string; namespace: string } {
+// wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
+// wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
+export function resolveSocketParams(wsUrl: string, socketPathOverride?: string): { serverOrigin: string; socketPath: string } {
   try {
     const u = new URL(wsUrl)
-    const namespace = u.pathname && u.pathname !== '/' ? u.pathname : '/'
-    const origin = `${u.protocol}//${u.host}`
-    return { origin, namespace }
+    const base = u.pathname !== '/' ? u.pathname.replace(/\/$/, '') : ''
+    return {
+      serverOrigin: u.origin,
+      socketPath: socketPathOverride ?? (base + '/socket.io'),
+    }
   } catch {
-    return { origin: wsUrl, namespace: '/' }
+    return { serverOrigin: wsUrl, socketPath: socketPathOverride ?? '/socket.io' }
   }
 }
 
@@ -65,8 +64,10 @@ function mapServerMessage(payload: ServerMessage): Message {
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const isConnectingRef = useRef(false)
+  const isIntentionalDisconnectRef = useRef(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const greetingInjectedRef = useRef(false)
+  const myUserIdRef = useRef<string | null>(null)
   const config = useChatStore((s) => s.config)
   const setPhase = useChatStore((s) => s.setPhase)
   const addMessage = useChatStore((s) => s.addMessage)
@@ -137,6 +138,7 @@ export function useSocket() {
 
   const connect = useCallback(() => {
     if (!config) return
+    isIntentionalDisconnectRef.current = false
     if (socketRef.current?.connected) return
     if (isConnectingRef.current) return
 
@@ -150,9 +152,10 @@ export function useSocket() {
     isConnectingRef.current = true
     setPhase('connecting')
 
-    const { origin, namespace } = parseWsUrl(config.wsUrl)
+    const { serverOrigin, socketPath } = resolveSocketParams(config.wsUrl, config.socketPath)
 
-    const socket = io(`${origin}${namespace}`, {
+    const socket = io(serverOrigin, {
+      path: socketPath,
       auth: { token: config.token },
       query: { token: config.token },
       transports: ['websocket', 'polling'],
@@ -195,13 +198,32 @@ export function useSocket() {
     socket.on('disconnect', (reason) => {
       isConnectingRef.current = false
       config.onDisconnected?.()
-      config.onError?.(`Disconnected: ${reason}`)
+      // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
+      // Nếu là intentional disconnect (destroy/close) thì bỏ qua
+      if (!isIntentionalDisconnectRef.current) {
+        config.onError?.(`Disconnected: ${reason}`)
+        // Nếu server cắt kỳ do idle hoặc network, set phase connecting
+        // để UI show spinner thay vì để người dùng gõ vào void
+        setPhase('connecting')
+      }
     })
 
     socket.on('connect_error', (err) => {
       isConnectingRef.current = false
+      // Sau nhiều lần retry thất bại → về form để user có thể reconnect
       setPhase('form')
-      config.onError?.(err.message)
+
+      const e = err as Error & {
+        data?: unknown
+        type?: string
+        context?: { status?: number; responseText?: string }
+      }
+      const detail: Record<string, unknown> = { type: e.type ?? 'connect_error' }
+      if (e.context?.status)       detail.httpStatus    = e.context.status
+      if (e.context?.responseText) detail.httpResponse  = e.context.responseText.slice(0, 500)
+      if (e.data !== undefined)    detail.serverData    = e.data
+
+      config.onError?.(e.message, detail)
     })
 
     // ── Business events ──────────────────────────────────────────────────────
@@ -210,6 +232,13 @@ export function useSocket() {
       config.onPresenceUpdate?.(payload)
 
       if (payload.type === 'anonymous' && payload.conversationId) {
+        // Ghi nhớ userId của chính mình từ event đầu tiên
+        if (!myUserIdRef.current && payload.userId) {
+          myUserIdRef.current = payload.userId
+        }
+        // Bỏ qua event của user khác (server broadcast cho cả agent)
+        if (payload.userId && myUserIdRef.current && payload.userId !== myUserIdRef.current) return
+
         const currentConvId = useChatStore.getState().conversationId
 
         // Same conversation reconnect — skip load history, messages already in store
@@ -218,7 +247,7 @@ export function useSocket() {
         // Different or no conversationId: new session assigned by server.
         // Clear messages and seenIds so history isn't duplicated across sessions.
         if (currentConvId && currentConvId !== payload.conversationId) {
-          useChatStore.getState().reset()
+          useChatStore.getState().resetSession()
           seenIdsRef.current = new Set()
           greetingInjectedRef.current = false
         }
@@ -244,7 +273,7 @@ export function useSocket() {
     socket.on('agent:typing', () => {
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
-      typingTimeout = setTimeout(() => setAgentTyping(false), 8000)
+      typingTimeout = setTimeout(() => setAgentTyping(false), 10000)
     })
 
     socket.on('message:new', (payload: ServerMessage) => {
@@ -278,10 +307,12 @@ export function useSocket() {
   }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory])
 
   const disconnect = useCallback(() => {
+    isIntentionalDisconnectRef.current = true
     isConnectingRef.current = false
     greetingInjectedRef.current = false
+    myUserIdRef.current = null
+    socketRef.current?.disconnect()        // fires 'disconnect' event — flag=true guards the handler
     socketRef.current?.removeAllListeners()
-    socketRef.current?.disconnect()
     socketRef.current = null
   }, [])
 

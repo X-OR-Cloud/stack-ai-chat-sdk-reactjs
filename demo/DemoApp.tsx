@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { StackAIChat } from '../src/index'
+import { resolveSocketParams } from '../src/hooks/useSocket'
 import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
 import { TestRunner } from './testRunner/TestRunner'
 import xorStackAiLogo from './xor-stack-ai.png'
@@ -65,6 +66,7 @@ const DEFAULT_FIELDS: FieldRow[] = [
 
 export function DemoApp() {
   const [wsUrl, setWsUrl]               = useState(DEFAULT_WS_URL)
+  const [socketPath, setSocketPath]     = useState('')
   const [token, setToken]               = useState(DEFAULT_TOKEN)
   const [title, setTitle]               = useState('Hỗ trợ khách hàng')
   const [subtitle, setSubtitle]         = useState('Thường trả lời trong vài phút')
@@ -134,8 +136,13 @@ export function DemoApp() {
 
     StackAIChat.init({
       ...(sdkConfig as SDKConfig),
-      onConnected: () =>
-        addLog('socket:connected', '✅ Socket connected'),
+      onConnected: () => {
+        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
+        addLog('socket:connected', `✅ Socket connected  origin=${serverOrigin}  path=${effectivePath}`, {
+          serverOrigin,
+          socketPath: effectivePath,
+        })
+      },
 
       onConversationJoined: (id) =>
         addLog('conversation:joined', `📨 Conversation ready → ${id}`, { conversationId: id }),
@@ -153,8 +160,15 @@ export function DemoApp() {
       onDisconnected: () =>
         addLog('socket:disconnected', '🔌 Socket disconnected'),
 
-      onError: (msg) =>
-        addLog('socket:error', `❌ Error: ${msg}`, { message: msg }),
+      onError: (msg, detail) => {
+        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
+        addLog('socket:error', `❌ Error: ${msg}  origin=${serverOrigin}  path=${effectivePath}`, {
+          message: msg,
+          serverOrigin,
+          socketPath: effectivePath,
+          ...detail,
+        })
+      },
 
       onOpen: () =>
         addLog('widget:open', '📂 Widget opened'),
@@ -241,6 +255,7 @@ export function DemoApp() {
   const sdkConfig: Partial<SDKConfig> = {
     wsUrl,
     token,
+    ...(socketPath.trim() ? { socketPath: socketPath.trim() } : {}),
     title,
     subtitle,
     position,
@@ -291,6 +306,9 @@ export function DemoApp() {
 
             <label className="demo-label">WebSocket URL</label>
             <input className="demo-input" value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="wss://..." />
+
+            <label className="demo-label">Socket Path <span className="demo-hint">(tuỳ chọn, mặc định /socket.io)</span></label>
+            <input className="demo-input" value={socketPath} onChange={(e) => setSocketPath(e.target.value)} placeholder="/socket.io" />
 
             <label className="demo-label">Token <span className="demo-required">*</span></label>
             <input className="demo-input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token" />

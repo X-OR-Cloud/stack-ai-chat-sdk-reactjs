@@ -33,6 +33,16 @@ export function ChatWindow({ position }: ChatWindowProps) {
     return () => unregisterConnect()
   }, [connect])
 
+  // Bug fix: khi ChatWindow remount (close → reopen) mà phase vẫn là 'chat'
+  // socket đã bị disconnect do unmount → cần reconnect lại
+  useEffect(() => {
+    if (phase === 'chat') {
+      connect()
+    }
+  // Chỉ chạy 1 lần khi mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleFormSubmit(values: Record<string, string>) {
     setUserFields(values)
     session.save(values)
