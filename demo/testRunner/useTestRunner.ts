@@ -266,5 +266,10 @@ export function useTestRunner() {
     eventsRef.current = []
   }, [])
 
-  return { status, liveEvents, result, run, reset }
+  const clearLiveLog = useCallback(() => {
+    setLiveEvents([])
+    eventsRef.current = []
+  }, [])
+
+  return { status, liveEvents, result, run, reset, clearLiveLog }
 }

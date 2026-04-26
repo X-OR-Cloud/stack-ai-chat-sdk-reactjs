@@ -75,3 +75,18 @@ export interface JudgeReport {
   markdown: string
   generatedAt: number
 }
+
+export interface TestRunnerBundle {
+  connection: {
+    wsUrl: string
+    socketPath?: string
+    token: string
+  }
+  llmJudge: {
+    endpoint: string
+    apiKey: string
+    model: string
+    systemPrompt: string
+  }
+  scenario: TestScenario
+}

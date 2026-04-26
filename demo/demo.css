@@ -476,40 +476,51 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 
 .demo-preview-header p { font-size: 13px; color: var(--c-muted); }
 
-/* ── Test Runner layout ──────────────────────────────────────── */
-.tr-layout {
+/* ── Bundle import/export bar (sidebar) ──────────────────────── */
+.demo-bundle-bar {
   display: flex;
-  gap: 16px;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--c-border);
+  flex-shrink: 0;
 }
+.demo-bundle-bar__btn { flex: 1; justify-content: center; font-size: 12px; }
 
-.tr-panel {
+/* ── Test Runner main layout ─────────────────────────────────── */
+.tr-main {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.tr-main::-webkit-scrollbar { width: 4px; }
+.tr-main::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; }
+
+/* ── Action row ──────────────────────────────────────────────── */
+.tr-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  overflow: hidden;
-}
-
-.tr-panel--left {
-  width: 340px;
   flex-shrink: 0;
-  overflow-y: auto;
-  padding-right: 4px;
 }
-.tr-panel--left::-webkit-scrollbar { width: 3px; }
-.tr-panel--left::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+.tr-action-row__left  { display: flex; align-items: center; gap: 8px; }
+.tr-action-row__right { display: flex; align-items: center; gap: 6px; }
 
-.tr-panel--right {
+/* ── Log panel (live log in Test Runner) ─────────────────────── */
+.tr-log-panel { flex-shrink: 0; }
+.tr-log-body  { max-height: 260px; }
+.tr-log-summary {
   flex: 1;
-  overflow-y: auto;
-  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tr-panel--right::-webkit-scrollbar { width: 3px; }
-.tr-panel--right::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+.tr-live-rt { color: #86efac; flex-shrink: 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
 
-/* ── Section ─────────────────────────────────────────────────── */
+/* ── Section (used by Report) ────────────────────────────────── */
 .tr-section {
   display: flex;
   flex-direction: column;
@@ -529,10 +540,7 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 }
 
 /* ── Scenario editor ─────────────────────────────────────────── */
-.tr-scenario-actions { display: flex; gap: 8px; }
-
 .tr-scenario-editor { font-size: 12px; min-height: 260px; }
-.tr-scenario-editor--error { border-color: var(--c-danger) !important; }
 
 .tr-error-inline {
   font-size: 12px;
@@ -549,8 +557,6 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
   line-height: 1.5;
 }
 
-/* ── Run area ────────────────────────────────────────────────── */
-.tr-run-area { display: flex; flex-direction: column; gap: 8px; }
 
 .tr-running-badge {
   display: flex;
@@ -576,38 +582,6 @@ body { background: var(--c-bg); height: 100dvh; overflow: hidden; }
 }
 @keyframes tr-spin { to { transform: rotate(360deg); } }
 
-/* ── Live event log ──────────────────────────────────────────── */
-.tr-live-log {
-  background: #0f172a;
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 200px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 80px;
-}
-.tr-live-log::-webkit-scrollbar { width: 3px; }
-.tr-live-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-
-.tr-live-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 11px;
-}
-.tr-live-ts   { color: #475569; min-width: 70px; }
-.tr-live-kind { color: #93c5fd; }
-.tr-live-rt   { color: #86efac; margin-left: auto; }
-
-.tr-live-line--message .tr-live-kind  { color: #6ee7b7; }
-.tr-live-line--socket .tr-live-kind   { color: #fbbf24; }
-.tr-live-line--test .tr-live-kind     { color: #c4b5fd; }
-.tr-live-line--sdk .tr-live-kind      { color: #f9a8d4; }
-.tr-live-line--history .tr-live-kind  { color: #7dd3fc; }
 
 /* ── Status badges ───────────────────────────────────────────── */
 .tr-badge {

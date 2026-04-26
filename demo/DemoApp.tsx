@@ -1,8 +1,11 @@
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { StackAIChat } from '../src/index'
 import { resolveSocketParams } from '../src/hooks/useSocket'
 import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
 import { TestRunner } from './testRunner/TestRunner'
+import { DEFAULT_SYSTEM_PROMPT } from './testRunner/defaultSystemPrompt'
+import defaultScenarioData from './testRunner/defaultScenario.json'
+import type { LLMJudgeConfig, TestRunnerBundle } from './testRunner/types'
 import xorStackAiLogo from './xor-stack-ai.png'
 
 // ─── Log entry ────────────────────────────────────────────────────────────────
@@ -24,18 +27,15 @@ export type LogEventKind =
 
 export interface LogEntry {
   id: number
-  ts: number               // Unix ms
+  ts: number
   kind: LogEventKind
-  // human-readable summary
   summary: string
-  // structured payload — everything that could help debug
   data?: Record<string, unknown>
 }
 
 let _logSeq = 0
 
 const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/ws/chat'
-const DEFAULT_TOKEN = ''
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -59,28 +59,33 @@ interface FieldRow {
 let fieldRowCounter = 3
 
 const DEFAULT_FIELDS: FieldRow[] = [
-  { id: 1, name: 'fullName', label: 'Họ và tên',      type: 'text', required: true },
-  { id: 2, name: 'phone',    label: 'Số điện thoại',   type: 'tel',  required: true },
-  { id: 3, name: 'idCard',   label: 'CCCD',            type: 'text', required: false },
+  { id: 1, name: 'fullName', label: 'Họ và tên',    type: 'text', required: true },
+  { id: 2, name: 'phone',    label: 'Số điện thoại', type: 'tel',  required: true },
+  { id: 3, name: 'idCard',   label: 'CCCD',          type: 'text', required: false },
 ]
 
 export function DemoApp() {
-  const [wsUrl, setWsUrl]               = useState(DEFAULT_WS_URL)
-  const [socketPath, setSocketPath]     = useState('')
-  const [token, setToken]               = useState(DEFAULT_TOKEN)
-  const [title, setTitle]               = useState('Hỗ trợ khách hàng')
-  const [subtitle, setSubtitle]         = useState('Thường trả lời trong vài phút')
-  const [greeting, setGreeting]         = useState('Xin chào! Tôi có thể giúp gì cho bạn?')
-  const [position, setPosition]         = useState<'bottom-right' | 'bottom-left'>('bottom-right')
-  const [themeMode, setThemeMode]       = useState<'light' | 'dark' | 'auto'>('light')
+  // ── Connection ──────────────────────────────────────────────────────────────
+  const [wsUrl, setWsUrl]           = useState(DEFAULT_WS_URL)
+  const [socketPath, setSocketPath] = useState('')
+  const [token, setToken]           = useState('')
+
+  // ── Widget UI ───────────────────────────────────────────────────────────────
+  const [title, setTitle]           = useState('Hỗ trợ khách hàng')
+  const [subtitle, setSubtitle]     = useState('Thường trả lời trong vài phút')
+  const [greeting, setGreeting]     = useState('Xin chào! Tôi có thể giúp gì cho bạn?')
+  const [position, setPosition]     = useState<'bottom-right' | 'bottom-left'>('bottom-right')
+  const [themeMode, setThemeMode]   = useState<'light' | 'dark' | 'auto'>('light')
   const [primaryColor, setPrimaryColor] = useState('#0066FF')
+
+  // ── Options ─────────────────────────────────────────────────────────────────
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
   const [showReferences, setShowReferences] = useState(true)
   const [maxInputLength, setMaxInputLength] = useState(1000)
-  const [fields, setFields]             = useState<FieldRow[]>(DEFAULT_FIELDS)
+  const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
-  // Visible message types
+  // ── Visible message types ───────────────────────────────────────────────────
   const ALL_MSG_TYPES = ['message', 'thinking', 'tool_use', 'tool_result', 'notice', 'system'] as const
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set(['message']))
   function toggleType(type: string) {
@@ -91,19 +96,47 @@ export function DemoApp() {
     })
   }
 
-  // Hidden patterns
-  const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
-
-  // Custom styles
+  // ── Custom styles ───────────────────────────────────────────────────────────
   const [customStylesEnabled, setCustomStylesEnabled] = useState(false)
   const [customGlobalCss, setCustomGlobalCss] = useState(':host {\n  --sai-primary: #7c3aed;\n  --sai-primary-hover: #6d28d9;\n}')
-  const [initialized, setInitialized]   = useState(false)
-  const [log, setLog]                   = useState<LogEntry[]>([])
-  const logRef = useRef<HTMLDivElement>(null)
-  const [activeTab, setActiveTab]       = useState<'preview' | 'test'>('preview')
+
+  // ── Fields ──────────────────────────────────────────────────────────────────
+  const [fields, setFields] = useState<FieldRow[]>(DEFAULT_FIELDS)
+
+  function addField() {
+    fieldRowCounter++
+    setFields((prev) => [...prev, { id: fieldRowCounter, name: '', label: '', type: 'text', required: false }])
+  }
+  function removeField(id: number) {
+    setFields((prev) => prev.filter((f) => f.id !== id))
+  }
+  function updateField(id: number, key: keyof FieldRow, value: string | boolean) {
+    setFields((prev) => prev.map((f) => f.id === id ? { ...f, [key]: value } : f))
+  }
+
+  // ── LLM Judge (shared with TestRunner) ─────────────────────────────────────
+  const [llmEndpoint, setLlmEndpoint]   = useState('https://api.openai.com/v1/chat/completions')
+  const [llmApiKey, setLlmApiKey]       = useState('')
+  const [llmModel, setLlmModel]         = useState('gpt-4o')
+  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false)
+
+  // ── Test Scenario (shared with TestRunner) ──────────────────────────────────
+  const [scenarioJson, setScenarioJson] = useState(() => JSON.stringify(defaultScenarioData, null, 2))
+
+  // ── Widget state ────────────────────────────────────────────────────────────
+  const [initialized, setInitialized] = useState(false)
+  const [log, setLog]                 = useState<LogEntry[]>([])
+  const [activeTab, setActiveTab]     = useState<'preview' | 'test'>('preview')
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const logRef       = useRef<HTMLDivElement>(null)
+  const bundleInputRef = useRef<HTMLInputElement>(null)
 
   const tokenInfo = decodeJwtPayload(token)
+
+  const llmConfig: LLMJudgeConfig = { endpoint: llmEndpoint, apiKey: llmApiKey, model: llmModel, systemPrompt }
+
+  // ── Log helpers ─────────────────────────────────────────────────────────────
 
   function addLog(kind: LogEventKind, summary: string, data?: Record<string, unknown>) {
     setLog((prev) => {
@@ -114,143 +147,65 @@ export function DemoApp() {
   }
 
   function copyLog() {
-    const text = JSON.stringify(log, null, 2)
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(JSON.stringify(log, null, 2)).then(() => {
       setCopyFeedback(true)
       setTimeout(() => setCopyFeedback(false), 1500)
     })
   }
 
-  function handleInit() {
-    if (initialized) {
-      StackAIChat.destroy()
-      setInitialized(false)
-      addLog('widget:destroy', '🗑 Widget destroyed')
-      return
+  // ── Bundle import / export ───────────────────────────────────────────────────
+
+  function handleBundleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const bundle = JSON.parse(ev.target?.result as string) as Partial<TestRunnerBundle>
+        if (bundle.connection) {
+          if (bundle.connection.wsUrl)    setWsUrl(bundle.connection.wsUrl)
+          if (bundle.connection.socketPath !== undefined) setSocketPath(bundle.connection.socketPath ?? '')
+          if (bundle.connection.token)    setToken(bundle.connection.token)
+        }
+        if (bundle.llmJudge) {
+          if (bundle.llmJudge.endpoint)     setLlmEndpoint(bundle.llmJudge.endpoint)
+          if (bundle.llmJudge.apiKey !== undefined)      setLlmApiKey(bundle.llmJudge.apiKey)
+          if (bundle.llmJudge.model)        setLlmModel(bundle.llmJudge.model)
+          if (bundle.llmJudge.systemPrompt) setSystemPrompt(bundle.llmJudge.systemPrompt)
+        }
+        if (bundle.scenario) {
+          setScenarioJson(JSON.stringify(bundle.scenario, null, 2))
+        }
+      } catch (err) {
+        alert(`Không thể đọc file: ${err}`)
+      }
     }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
 
-    if (!wsUrl || !token) {
-      alert('Vui lòng điền đủ WS URL và Token')
-      return
+  function handleBundleExport() {
+    let scenario = defaultScenarioData
+    try { scenario = JSON.parse(scenarioJson) } catch { /* keep default */ }
+    const bundle: TestRunnerBundle = {
+      connection: {
+        wsUrl,
+        ...(socketPath.trim() ? { socketPath: socketPath.trim() } : {}),
+        token,
+      },
+      llmJudge: { endpoint: llmEndpoint, apiKey: llmApiKey, model: llmModel, systemPrompt },
+      scenario,
     }
-
-    StackAIChat.init({
-      ...(sdkConfig as SDKConfig),
-      onConnected: () => {
-        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
-        addLog('socket:connected', `✅ Socket connected  origin=${serverOrigin}  path=${effectivePath}`, {
-          serverOrigin,
-          socketPath: effectivePath,
-        })
-      },
-
-      onConversationJoined: (id) =>
-        addLog('conversation:joined', `📨 Conversation ready → ${id}`, { conversationId: id }),
-
-      onPresenceUpdate: (p: PresenceUpdatePayload) =>
-        addLog('presence:update', `👁 presence:update [${p.type}] ${p.status}`, {
-          type: p.type,
-          status: p.status,
-          agentId: p.agentId,
-          userId: p.userId,
-          conversationId: p.conversationId,
-          timestamp: p.timestamp,
-        }),
-
-      onDisconnected: () =>
-        addLog('socket:disconnected', '🔌 Socket disconnected'),
-
-      onError: (msg, detail) => {
-        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
-        addLog('socket:error', `❌ Error: ${msg}  origin=${serverOrigin}  path=${effectivePath}`, {
-          message: msg,
-          serverOrigin,
-          socketPath: effectivePath,
-          ...detail,
-        })
-      },
-
-      onOpen: () =>
-        addLog('widget:open', '📂 Widget opened'),
-
-      onClose: () =>
-        addLog('widget:close', '📁 Widget closed'),
-
-      onFormSubmit: (data) =>
-        addLog('form:submit', `📋 Form submitted`, { fields: data }),
-
-      onMessage: (msg: Message) => {
-        const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} src` : ''
-        addLog('message:new', `💬 [${msg.role}/${msg.type}] ${msg.content.slice(0, 60)}${sourcesInfo}`, {
-          messageId: msg.messageId,
-          localId: msg.localId,
-          conversationId: msg.conversationId,
-          role: msg.role,
-          type: msg.type,
-          status: msg.status,
-          contentLength: msg.content.length,
-          contentPreview: msg.content.slice(0, 200),
-          sourcesCount: msg.sources.length,
-          sources: msg.sources,
-          attachmentsCount: msg.attachments.length,
-          timestamp: msg.timestamp,
-        })
-      },
-
-      onRawMessage: (raw) => {
-        const r = raw as Record<string, unknown>
-        const content = typeof r.content === 'string' ? r.content : undefined
-        addLog('message:raw', `🔍 RAW [${r.role}/${r.type ?? '?'}] skip=${r.skipAgent ?? false} id=${r._id ?? '?'}: ${content?.slice(0, 60) ?? ''}`, {
-          _id: r._id,
-          role: r.role,
-          type: r.type,
-          skipAgent: r.skipAgent,
-          contentLength: content?.length,
-          contentPreview: content?.slice(0, 200),
-          conversationId: r.conversationId,
-          timestamp: r.timestamp,
-          sources: r.sources,
-          attachments: r.attachments,
-          extraKeys: Object.keys(r).filter(
-            (k) => !['_id','role','type','skipAgent','content','conversationId','timestamp','sources','attachments'].includes(k)
-          ),
-          fullPayload: r,
-        })
-      },
-    })
-
-    setInitialized(true)
-    addLog('widget:init', `🚀 Widget initialized v${StackAIChat.version}`, {
-      version: StackAIChat.version,
-      wsUrl,
-      title: sdkConfig.title,
-      position: sdkConfig.position ?? 'bottom-right',
-      themeMode: sdkConfig.theme?.mode ?? 'light',
-      primaryColor: sdkConfig.theme?.primaryColor,
-      visibleMessageTypes: sdkConfig.visibleMessageTypes ?? ['message'],
-      showReferences: sdkConfig.showReferences ?? true,
-      attachmentsEnabled: sdkConfig.attachments?.enabled ?? false,
-      fieldsCount: sdkConfig.fields?.length ?? 0,
-      persistSession: sdkConfig.session?.persist ?? false,
-      maxInputLength: sdkConfig.maxInputLength ?? 1000,
-      greeting: sdkConfig.greeting,
-    })
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `test-runner-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
-  // ── Field editor ───────────────────────────────────────────────────────────
-
-  function addField() {
-    fieldRowCounter++
-    setFields((prev) => [...prev, { id: fieldRowCounter, name: '', label: '', type: 'text', required: false }])
-  }
-
-  function removeField(id: number) {
-    setFields((prev) => prev.filter((f) => f.id !== id))
-  }
-
-  function updateField(id: number, key: keyof FieldRow, value: string | boolean) {
-    setFields((prev) => prev.map((f) => f.id === id ? { ...f, [key]: value } : f))
-  }
+  // ── Widget init / destroy ────────────────────────────────────────────────────
 
   const sdkConfig: Partial<SDKConfig> = {
     wsUrl,
@@ -279,10 +234,86 @@ export function DemoApp() {
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
 
+  function handleInit() {
+    if (initialized) {
+      StackAIChat.destroy()
+      setInitialized(false)
+      addLog('widget:destroy', '🗑 Widget destroyed')
+      return
+    }
+    if (!wsUrl || !token) {
+      alert('Vui lòng điền đủ WS URL và Token')
+      return
+    }
+    StackAIChat.init({
+      ...(sdkConfig as SDKConfig),
+      onConnected: () => {
+        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
+        addLog('socket:connected', `✅ Socket connected  origin=${serverOrigin}  path=${effectivePath}`, { serverOrigin, socketPath: effectivePath })
+      },
+      onConversationJoined: (id) =>
+        addLog('conversation:joined', `📨 Conversation ready → ${id}`, { conversationId: id }),
+      onPresenceUpdate: (p: PresenceUpdatePayload) =>
+        addLog('presence:update', `👁 presence:update [${p.type}] ${p.status}`, {
+          type: p.type, status: p.status, agentId: p.agentId, userId: p.userId,
+          conversationId: p.conversationId, timestamp: p.timestamp,
+        }),
+      onDisconnected: () => addLog('socket:disconnected', '🔌 Socket disconnected'),
+      onError: (msg, detail) => {
+        const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
+        addLog('socket:error', `❌ Error: ${msg}  origin=${serverOrigin}  path=${effectivePath}`, {
+          message: msg, serverOrigin, socketPath: effectivePath, ...detail,
+        })
+      },
+      onOpen:  () => addLog('widget:open',  '📂 Widget opened'),
+      onClose: () => addLog('widget:close', '📁 Widget closed'),
+      onFormSubmit: (data) => addLog('form:submit', `📋 Form submitted`, { fields: data }),
+      onMessage: (msg: Message) => {
+        const sourcesInfo = msg.sources.length ? ` · ${msg.sources.length} src` : ''
+        addLog('message:new', `💬 [${msg.role}/${msg.type}] ${msg.content.slice(0, 60)}${sourcesInfo}`, {
+          messageId: msg.messageId, localId: msg.localId, conversationId: msg.conversationId,
+          role: msg.role, type: msg.type, status: msg.status, contentLength: msg.content.length,
+          contentPreview: msg.content.slice(0, 200), sourcesCount: msg.sources.length,
+          sources: msg.sources, attachmentsCount: msg.attachments.length, timestamp: msg.timestamp,
+        })
+      },
+      onRawMessage: (raw) => {
+        const r = raw as Record<string, unknown>
+        const content = typeof r.content === 'string' ? r.content : undefined
+        addLog('message:raw', `🔍 RAW [${r.role}/${r.type ?? '?'}] skip=${r.skipAgent ?? false} id=${r._id ?? '?'}: ${content?.slice(0, 60) ?? ''}`, {
+          _id: r._id, role: r.role, type: r.type, skipAgent: r.skipAgent,
+          contentLength: content?.length, contentPreview: content?.slice(0, 200),
+          conversationId: r.conversationId, timestamp: r.timestamp,
+          sources: r.sources, attachments: r.attachments,
+          extraKeys: Object.keys(r).filter(
+            (k) => !['_id','role','type','skipAgent','content','conversationId','timestamp','sources','attachments'].includes(k)
+          ),
+          fullPayload: r,
+        })
+      },
+    })
+    setInitialized(true)
+    addLog('widget:init', `🚀 Widget initialized v${StackAIChat.version}`, {
+      version: StackAIChat.version, wsUrl, title: sdkConfig.title,
+      position: sdkConfig.position ?? 'bottom-right', themeMode: sdkConfig.theme?.mode ?? 'light',
+      primaryColor: sdkConfig.theme?.primaryColor,
+      visibleMessageTypes: sdkConfig.visibleMessageTypes ?? ['message'],
+      showReferences: sdkConfig.showReferences ?? true,
+      attachmentsEnabled: sdkConfig.attachments?.enabled ?? false,
+      fieldsCount: sdkConfig.fields?.length ?? 0,
+      persistSession: sdkConfig.session?.persist ?? false,
+      maxInputLength: sdkConfig.maxInputLength ?? 1000, greeting: sdkConfig.greeting,
+    })
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <div className="demo-layout">
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+
+      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <aside className="demo-sidebar">
+
         <div className="demo-logo-banner">
           <img src={xorStackAiLogo} alt="X-OR Stack AI" className="demo-logo-banner__img" />
         </div>
@@ -298,9 +329,21 @@ export function DemoApp() {
           </div>
         </div>
 
+        {/* Import / Export bundle — outside scroll area, always visible */}
+        <div className="demo-bundle-bar">
+          <button className="demo-btn demo-btn--ghost demo-bundle-bar__btn" onClick={() => bundleInputRef.current?.click()}>
+            📥 Import JSON
+          </button>
+          <button className="demo-btn demo-btn--ghost demo-bundle-bar__btn" onClick={handleBundleExport}>
+            📤 Export JSON
+          </button>
+          <input ref={bundleInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleBundleImport} />
+        </div>
+
+        {/* Scrollable config area */}
         <div className="demo-form">
 
-          {/* Connection */}
+          {/* ── Connection — always shown ──────────────────────────────── */}
           <section className="demo-section">
             <h3 className="demo-section__title">🔌 Kết nối</h3>
 
@@ -321,208 +364,230 @@ export function DemoApp() {
                     {String(tokenInfo.type ?? 'unknown')}
                   </span>
                 </div>
-                {!!tokenInfo.sub    && <div className="demo-token-info__row"><span className="demo-token-info__key">sub</span><span className="demo-token-info__val">{String(tokenInfo.sub)}</span></div>}
+                {!!tokenInfo.sub        && <div className="demo-token-info__row"><span className="demo-token-info__key">sub</span><span className="demo-token-info__val">{String(tokenInfo.sub)}</span></div>}
                 {!!tokenInfo.anonymousId && <div className="demo-token-info__row"><span className="demo-token-info__key">anonymousId</span><span className="demo-token-info__val">{String(tokenInfo.anonymousId)}</span></div>}
-                {!!tokenInfo.agentId && <div className="demo-token-info__row"><span className="demo-token-info__key">agentId</span><span className="demo-token-info__val">{String(tokenInfo.agentId)}</span></div>}
-                {!!tokenInfo.orgId   && <div className="demo-token-info__row"><span className="demo-token-info__key">orgId</span><span className="demo-token-info__val">{String(tokenInfo.orgId)}</span></div>}
-                {!!tokenInfo.exp     && <div className="demo-token-info__row"><span className="demo-token-info__key">exp</span><span className="demo-token-info__val">{new Date(Number(tokenInfo.exp) * 1000).toLocaleString('vi-VN')}</span></div>}
+                {!!tokenInfo.agentId    && <div className="demo-token-info__row"><span className="demo-token-info__key">agentId</span><span className="demo-token-info__val">{String(tokenInfo.agentId)}</span></div>}
+                {!!tokenInfo.orgId      && <div className="demo-token-info__row"><span className="demo-token-info__key">orgId</span><span className="demo-token-info__val">{String(tokenInfo.orgId)}</span></div>}
+                {!!tokenInfo.exp        && <div className="demo-token-info__row"><span className="demo-token-info__key">exp</span><span className="demo-token-info__val">{new Date(Number(tokenInfo.exp) * 1000).toLocaleString('vi-VN')}</span></div>}
               </div>
             )}
             {token && !tokenInfo && (
               <div className="demo-token-info demo-token-info--error">⚠ Token không hợp lệ</div>
             )}
-
           </section>
 
-          {/* UI */}
-          <section className="demo-section">
-            <h3 className="demo-section__title">🎨 Giao diện</h3>
+          {/* ── Preview tab sections ───────────────────────────────────── */}
+          {activeTab === 'preview' && (
+            <>
+              {/* UI */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">🎨 Giao diện</h3>
 
-            <label className="demo-label">Tiêu đề</label>
-            <input className="demo-input" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <label className="demo-label">Tiêu đề</label>
+                <input className="demo-input" value={title} onChange={(e) => setTitle(e.target.value)} />
 
-            <label className="demo-label">Phụ đề</label>
-            <input className="demo-input" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+                <label className="demo-label">Phụ đề</label>
+                <input className="demo-input" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
 
-            <label className="demo-label">Lời chào (greeting)</label>
-            <input className="demo-input" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="Để trống nếu không dùng" />
+                <label className="demo-label">Lời chào (greeting)</label>
+                <input className="demo-input" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="Để trống nếu không dùng" />
 
-            <div className="demo-row">
-              <div className="demo-col">
-                <label className="demo-label">Vị trí</label>
-                <select className="demo-input" value={position} onChange={(e) => setPosition(e.target.value as 'bottom-right' | 'bottom-left')}>
-                  <option value="bottom-right">Phải</option>
-                  <option value="bottom-left">Trái</option>
-                </select>
-              </div>
-              <div className="demo-col">
-                <label className="demo-label">Theme</label>
-                <select className="demo-input" value={themeMode} onChange={(e) => setThemeMode(e.target.value as 'light' | 'dark' | 'auto')}>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                  <option value="auto">Auto (OS)</option>
-                </select>
-              </div>
-            </div>
+                <div className="demo-row">
+                  <div className="demo-col">
+                    <label className="demo-label">Vị trí</label>
+                    <select className="demo-input" value={position} onChange={(e) => setPosition(e.target.value as 'bottom-right' | 'bottom-left')}>
+                      <option value="bottom-right">Phải</option>
+                      <option value="bottom-left">Trái</option>
+                    </select>
+                  </div>
+                  <div className="demo-col">
+                    <label className="demo-label">Theme</label>
+                    <select className="demo-input" value={themeMode} onChange={(e) => setThemeMode(e.target.value as 'light' | 'dark' | 'auto')}>
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                      <option value="auto">Auto (OS)</option>
+                    </select>
+                  </div>
+                </div>
 
-            <label className="demo-label">Primary Color</label>
-            <div className="demo-color-row">
-              <input type="color" className="demo-color-picker" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
-              <input className="demo-input" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} style={{ flex: 1 }} />
-            </div>
-          </section>
+                <label className="demo-label">Primary Color</label>
+                <div className="demo-color-row">
+                  <input type="color" className="demo-color-picker" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
+                  <input className="demo-input" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} style={{ flex: 1 }} />
+                </div>
+              </section>
 
-          {/* Options */}
-          <section className="demo-section">
-            <h3 className="demo-section__title">⚙️ Tùy chọn</h3>
+              {/* Options */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">⚙️ Tùy chọn</h3>
 
-            <label className="demo-toggle">
-              <input type="checkbox" checked={persistSession} onChange={(e) => setPersistSession(e.target.checked)} />
-              <span>Lưu session (localStorage)</span>
-            </label>
-
-            <label className="demo-toggle">
-              <input type="checkbox" checked={attachEnabled} onChange={(e) => setAttachEnabled(e.target.checked)} />
-              <span>Cho phép đính kèm file</span>
-            </label>
-
-            <label className="demo-toggle">
-              <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
-              <span>Ẩn Knowledge Search / Retrieved chunks</span>
-            </label>
-
-            <label className="demo-toggle">
-              <input type="checkbox" checked={showReferences} onChange={(e) => setShowReferences(e.target.checked)} />
-              <span>Hiển thị tài liệu tham chiếu</span>
-            </label>
-
-            <label className="demo-label">Giới hạn ký tự input (max 2000)</label>
-            <div className="demo-row" style={{ alignItems: 'center', gap: '8px' }}>
-              <input
-                type="range"
-                min={100}
-                max={2000}
-                step={100}
-                value={maxInputLength}
-                onChange={(e) => setMaxInputLength(Number(e.target.value))}
-                style={{ flex: 1 }}
-              />
-              <span style={{ minWidth: '40px', textAlign: 'right', fontSize: '13px', fontWeight: 600 }}>{maxInputLength}</span>
-            </div>
-          </section>
-
-          {/* Visible message types */}
-          <section className="demo-section">
-            <h3 className="demo-section__title">📡 Visible Message Types</h3>
-            <p className="demo-hint">Chọn loại action từ WS hiển thị trên chat box</p>
-            <div className="demo-type-grid">
-              {ALL_MSG_TYPES.map((t) => (
-                <label key={t} className="demo-toggle demo-toggle--chip">
-                  <input type="checkbox" checked={visibleTypes.has(t)} onChange={() => toggleType(t)} />
-                  <span className={`demo-chip ${visibleTypes.has(t) ? 'demo-chip--active' : ''}`}>{t}</span>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={persistSession} onChange={(e) => setPersistSession(e.target.checked)} />
+                  <span>Lưu session (localStorage)</span>
                 </label>
-              ))}
-            </div>
-          </section>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={attachEnabled} onChange={(e) => setAttachEnabled(e.target.checked)} />
+                  <span>Cho phép đính kèm file</span>
+                </label>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
+                  <span>Ẩn Knowledge Search / Retrieved chunks</span>
+                </label>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={showReferences} onChange={(e) => setShowReferences(e.target.checked)} />
+                  <span>Hiển thị tài liệu tham chiếu</span>
+                </label>
 
-          {/* Custom styles */}
-          <section className="demo-section">
-            <h3 className="demo-section__title">🎭 Custom Styles</h3>
+                <label className="demo-label">Giới hạn ký tự input (max 2000)</label>
+                <div className="demo-row" style={{ alignItems: 'center', gap: '8px' }}>
+                  <input type="range" min={100} max={2000} step={100} value={maxInputLength}
+                    onChange={(e) => setMaxInputLength(Number(e.target.value))} style={{ flex: 1 }} />
+                  <span style={{ minWidth: '40px', textAlign: 'right', fontSize: '13px', fontWeight: 600 }}>{maxInputLength}</span>
+                </div>
+              </section>
 
-            <label className="demo-toggle">
-              <input type="checkbox" checked={customStylesEnabled} onChange={(e) => setCustomStylesEnabled(e.target.checked)} />
-              <span>Bật custom CSS</span>
-            </label>
+              {/* Visible message types */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">📡 Visible Message Types</h3>
+                <p className="demo-hint">Chọn loại action từ WS hiển thị trên chat box</p>
+                <div className="demo-type-grid">
+                  {ALL_MSG_TYPES.map((t) => (
+                    <label key={t} className="demo-toggle demo-toggle--chip">
+                      <input type="checkbox" checked={visibleTypes.has(t)} onChange={() => toggleType(t)} />
+                      <span className={`demo-chip ${visibleTypes.has(t) ? 'demo-chip--active' : ''}`}>{t}</span>
+                    </label>
+                  ))}
+                </div>
+              </section>
 
-            {customStylesEnabled && (
-              <>
-                <label className="demo-label">Global CSS (inject vào Shadow DOM)</label>
+              {/* Custom styles */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">🎭 Custom Styles</h3>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={customStylesEnabled} onChange={(e) => setCustomStylesEnabled(e.target.checked)} />
+                  <span>Bật custom CSS</span>
+                </label>
+                {customStylesEnabled && (
+                  <>
+                    <label className="demo-label">Global CSS (inject vào Shadow DOM)</label>
+                    <textarea className="demo-input demo-textarea" rows={5}
+                      value={customGlobalCss} onChange={(e) => setCustomGlobalCss(e.target.value)} spellCheck={false} />
+                  </>
+                )}
+              </section>
+
+              {/* Fields */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">📋 Fields Pre-chat Form</h3>
+                {fields.map((field) => (
+                  <div key={field.id} className="demo-field-row">
+                    <input className="demo-input demo-input--sm" placeholder="name (key)"
+                      value={field.name} onChange={(e) => updateField(field.id, 'name', e.target.value)} />
+                    <input className="demo-input demo-input--sm" placeholder="Label hiển thị"
+                      value={field.label} onChange={(e) => updateField(field.id, 'label', e.target.value)} />
+                    <select className="demo-input demo-input--xs" value={field.type}
+                      onChange={(e) => updateField(field.id, 'type', e.target.value)}>
+                      <option value="text">text</option>
+                      <option value="tel">tel</option>
+                      <option value="email">email</option>
+                      <option value="number">number</option>
+                    </select>
+                    <label className="demo-toggle demo-toggle--inline" title="Required">
+                      <input type="checkbox" checked={field.required} onChange={(e) => updateField(field.id, 'required', e.target.checked)} />
+                      <span>*</span>
+                    </label>
+                    <button className="demo-btn-icon" onClick={() => removeField(field.id)} title="Xóa field">✕</button>
+                  </div>
+                ))}
+                <button className="demo-btn demo-btn--ghost" onClick={addField}>+ Thêm field</button>
+              </section>
+
+              {/* Init button */}
+              <button
+                className={`demo-btn demo-btn--primary ${initialized ? 'demo-btn--destroy' : ''}`}
+                onClick={handleInit}
+              >
+                {initialized ? '🗑 Destroy Widget' : '🚀 Khởi tạo Widget'}
+              </button>
+              {initialized && (
+                <div className="demo-quick-actions">
+                  <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.open(); addLog('widget:open', '📂 open() called manually') }}>Open</button>
+                  <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.close(); addLog('widget:close', '📁 close() called manually') }}>Close</button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Test Runner tab sections ───────────────────────────────── */}
+          {activeTab === 'test' && (
+            <>
+              {/* LLM Judge */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">🤖 LLM Judge</h3>
+
+                <label className="demo-label">Endpoint (OpenAI-compatible)</label>
+                <input className="demo-input" value={llmEndpoint} onChange={(e) => setLlmEndpoint(e.target.value)}
+                  placeholder="https://api.openai.com/v1/chat/completions" />
+
+                <div className="demo-row">
+                  <div className="demo-col">
+                    <label className="demo-label">Model</label>
+                    <input className="demo-input" value={llmModel} onChange={(e) => setLlmModel(e.target.value)} placeholder="gpt-4o" />
+                  </div>
+                  <div className="demo-col">
+                    <label className="demo-label">API Key</label>
+                    <input className="demo-input" type="password" value={llmApiKey}
+                      onChange={(e) => setLlmApiKey(e.target.value)} placeholder="sk-..." />
+                  </div>
+                </div>
+
+                <button className="demo-btn demo-btn--ghost demo-btn--xs" style={{ alignSelf: 'flex-start' }}
+                  onClick={() => setShowSystemPrompt((v) => !v)}>
+                  {showSystemPrompt ? '▲ Ẩn System Prompt' : '▼ Xem / Sửa System Prompt'}
+                </button>
+                {showSystemPrompt && (
+                  <textarea className="demo-input demo-textarea" rows={10}
+                    value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} spellCheck={false} />
+                )}
+              </section>
+
+              {/* Scenario */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">📋 Kịch bản test</h3>
                 <textarea
-                  className="demo-input demo-textarea"
-                  rows={5}
-                  value={customGlobalCss}
-                  onChange={(e) => setCustomGlobalCss(e.target.value)}
+                  className="demo-input demo-textarea tr-scenario-editor"
+                  rows={18}
+                  value={scenarioJson}
+                  onChange={(e) => setScenarioJson(e.target.value)}
                   spellCheck={false}
                 />
-              </>
-            )}
-          </section>
-
-          {/* Form fields */}
-          <section className="demo-section">
-            <h3 className="demo-section__title">📋 Fields Pre-chat Form</h3>
-
-            {fields.map((field) => (
-              <div key={field.id} className="demo-field-row">
-                <input
-                  className="demo-input demo-input--sm"
-                  placeholder="name (key)"
-                  value={field.name}
-                  onChange={(e) => updateField(field.id, 'name', e.target.value)}
-                />
-                <input
-                  className="demo-input demo-input--sm"
-                  placeholder="Label hiển thị"
-                  value={field.label}
-                  onChange={(e) => updateField(field.id, 'label', e.target.value)}
-                />
-                <select
-                  className="demo-input demo-input--xs"
-                  value={field.type}
-                  onChange={(e) => updateField(field.id, 'type', e.target.value)}
-                >
-                  <option value="text">text</option>
-                  <option value="tel">tel</option>
-                  <option value="email">email</option>
-                  <option value="number">number</option>
-                </select>
-                <label className="demo-toggle demo-toggle--inline" title="Required">
-                  <input type="checkbox" checked={field.required} onChange={(e) => updateField(field.id, 'required', e.target.checked)} />
-                  <span>*</span>
-                </label>
-                <button className="demo-btn-icon" onClick={() => removeField(field.id)} title="Xóa field">✕</button>
-              </div>
-            ))}
-
-            <button className="demo-btn demo-btn--ghost" onClick={addField}>+ Thêm field</button>
-          </section>
-
-          {/* Init button */}
-          <button
-            className={`demo-btn demo-btn--primary ${initialized ? 'demo-btn--destroy' : ''}`}
-            onClick={handleInit}
-          >
-            {initialized ? '🗑 Destroy Widget' : '🚀 Khởi tạo Widget'}
-          </button>
-
-          {initialized && (
-            <div className="demo-quick-actions">
-              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.open(); addLog('widget:open', '📂 open() called manually') }}>Open</button>
-              <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.close(); addLog('widget:close', '📁 close() called manually') }}>Close</button>
-            </div>
+                <div className="tr-hint">
+                  <strong>messages[].delayAfter</strong> = ms chờ sau mỗi tin.
+                  <strong> testReopen: true</strong> → destroy + reinit để test reload lịch sử.
+                </div>
+              </section>
+            </>
           )}
+
         </div>
       </aside>
 
-      {/* ── Main ────────────────────────────────────────────────────────────── */}
+      {/* ── Main ──────────────────────────────────────────────────────────── */}
       <main className="demo-main">
 
         {/* Tabs */}
         <div className="demo-tabs">
-          <button
-            className={`demo-tab ${activeTab === 'preview' ? 'demo-tab--active' : ''}`}
-            onClick={() => setActiveTab('preview')}
-          >
+          <button className={`demo-tab ${activeTab === 'preview' ? 'demo-tab--active' : ''}`}
+            onClick={() => setActiveTab('preview')}>
             👁 Preview
           </button>
-          <button
-            className={`demo-tab ${activeTab === 'test' ? 'demo-tab--active' : ''}`}
-            onClick={() => setActiveTab('test')}
-          >
+          <button className={`demo-tab ${activeTab === 'test' ? 'demo-tab--active' : ''}`}
+            onClick={() => setActiveTab('test')}>
             🧪 Test Runner
           </button>
         </div>
 
+        {/* Preview tab */}
         {activeTab === 'preview' && (
           <>
             <div className="demo-preview-header">
@@ -532,6 +597,35 @@ export function DemoApp() {
               </p>
             </div>
 
+            {/* Event log */}
+            <div className="demo-log-panel">
+              <div className="demo-log-header">
+                <span>📡 Event Log <span className="demo-log-count">{log.length > 0 ? `(${log.length})` : ''}</span></span>
+                <div className="demo-log-actions">
+                  <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={copyLog}
+                    disabled={log.length === 0} title="Copy toàn bộ log dạng JSON array để debug">
+                    {copyFeedback ? '✅ Copied!' : '📋 Copy JSON'}
+                  </button>
+                  <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
+                </div>
+              </div>
+              <div className="demo-log" ref={logRef}>
+                {log.length === 0
+                  ? <span className="demo-log__empty">Chưa có sự kiện nào...</span>
+                  : log.map((entry) => (
+                    <div key={entry.id} className={`demo-log__line demo-log__line--${entry.kind.split(':')[0]}`}>
+                      <span className="demo-log__time">{new Date(entry.ts).toLocaleTimeString('vi-VN')}</span>
+                      {' '}
+                      <span className="demo-log__kind">[{entry.kind}]</span>
+                      {' '}
+                      {entry.summary}
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            {/* Browser mockup */}
             <div className="demo-mockup">
               <div className="demo-mockup__browser">
                 <div className="demo-mockup__bar">
@@ -558,7 +652,6 @@ export function DemoApp() {
                         <span className="demo-page__brand">⚡ Your Company</span>
                         <span className="demo-page__navlinks">Sản phẩm · Giá cả · Tài liệu · Blog</span>
                       </nav>
-
                       <section className="demo-page__hero">
                         <h1>Nền tảng AI thông minh cho doanh nghiệp</h1>
                         <p>Tự động hóa quy trình, nâng cao trải nghiệm khách hàng và tăng hiệu suất vận hành với giải pháp AI toàn diện của chúng tôi.</p>
@@ -567,7 +660,6 @@ export function DemoApp() {
                           <button className="demo-page__cta demo-page__cta--ghost">Xem demo</button>
                         </div>
                       </section>
-
                       <section className="demo-page__cards">
                         <div className="demo-page__card">
                           <div className="demo-page__card-icon">🤖</div>
@@ -585,7 +677,6 @@ export function DemoApp() {
                           <p>Kết nối dễ dàng với CRM, ERP và hơn 200 ứng dụng phổ biến thông qua API RESTful và webhook tiêu chuẩn.</p>
                         </div>
                       </section>
-
                       {!initialized && (
                         <div className="demo-mockup__hint">
                           ← Điền thông tin và nhấn <strong>Khởi tạo Widget</strong>
@@ -596,43 +687,12 @@ export function DemoApp() {
                 </div>
               </div>
             </div>
-
-            {/* Event log */}
-            <div className="demo-log-panel">
-              <div className="demo-log-header">
-                <span>📡 Event Log <span className="demo-log-count">{log.length > 0 ? `(${log.length})` : ''}</span></span>
-                <div className="demo-log-actions">
-                  <button
-                    className="demo-btn demo-btn--ghost demo-btn--xs"
-                    onClick={copyLog}
-                    disabled={log.length === 0}
-                    title="Copy toàn bộ log dạng JSON array để debug"
-                  >
-                    {copyFeedback ? '✅ Copied!' : '📋 Copy JSON'}
-                  </button>
-                  <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={() => setLog([])}>Clear</button>
-                </div>
-              </div>
-              <div className="demo-log" ref={logRef}>
-                {log.length === 0
-                  ? <span className="demo-log__empty">Chưa có sự kiện nào...</span>
-                  : log.map((entry) => (
-                    <div key={entry.id} className={`demo-log__line demo-log__line--${entry.kind.split(':')[0]}`}>
-                      <span className="demo-log__time">{new Date(entry.ts).toLocaleTimeString('vi-VN')}</span>
-                      {' '}
-                      <span className="demo-log__kind">[{entry.kind}]</span>
-                      {' '}
-                      {entry.summary}
-                    </div>
-                  ))
-                }
-              </div>
-            </div>
           </>
         )}
 
+        {/* Test Runner tab */}
         {activeTab === 'test' && (
-          <TestRunner sdkConfig={sdkConfig} />
+          <TestRunner sdkConfig={sdkConfig} llmConfig={llmConfig} scenarioJson={scenarioJson} />
         )}
 
       </main>
