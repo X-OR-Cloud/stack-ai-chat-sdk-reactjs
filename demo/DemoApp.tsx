@@ -118,6 +118,7 @@ export function DemoApp() {
   const [llmEndpoint, setLlmEndpoint]   = useState('https://api.openai.com/v1/chat/completions')
   const [llmApiKey, setLlmApiKey]       = useState('')
   const [llmModel, setLlmModel]         = useState('gpt-4o')
+  const [llmTemperature, setLlmTemperature] = useState<number | ''>(0.3)
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
   const [showSystemPrompt, setShowSystemPrompt] = useState(false)
 
@@ -134,7 +135,13 @@ export function DemoApp() {
 
   const tokenInfo = decodeJwtPayload(token)
 
-  const llmConfig: LLMJudgeConfig = { endpoint: llmEndpoint, apiKey: llmApiKey, model: llmModel, systemPrompt }
+  const llmConfig: LLMJudgeConfig = { 
+    endpoint: llmEndpoint, 
+    apiKey: llmApiKey, 
+    model: llmModel, 
+    systemPrompt,
+    ...(llmTemperature !== '' ? { temperature: Number(llmTemperature) } : {})
+  }
 
   // ── Log helpers ─────────────────────────────────────────────────────────────
 
@@ -172,6 +179,7 @@ export function DemoApp() {
           if (bundle.llmJudge.apiKey !== undefined)      setLlmApiKey(bundle.llmJudge.apiKey)
           if (bundle.llmJudge.model)        setLlmModel(bundle.llmJudge.model)
           if (bundle.llmJudge.systemPrompt) setSystemPrompt(bundle.llmJudge.systemPrompt)
+          if (bundle.llmJudge.temperature !== undefined) setLlmTemperature(bundle.llmJudge.temperature)
         }
         if (bundle.scenario) {
           setScenarioJson(JSON.stringify(bundle.scenario, null, 2))
@@ -193,7 +201,7 @@ export function DemoApp() {
         ...(socketPath.trim() ? { socketPath: socketPath.trim() } : {}),
         token,
       },
-      llmJudge: { endpoint: llmEndpoint, apiKey: llmApiKey, model: llmModel, systemPrompt },
+      llmJudge: { endpoint: llmEndpoint, apiKey: llmApiKey, model: llmModel, systemPrompt, ...(llmTemperature !== '' ? { temperature: Number(llmTemperature) } : {}) },
       scenario,
     }
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
@@ -535,6 +543,12 @@ export function DemoApp() {
                     <input className="demo-input" value={llmModel} onChange={(e) => setLlmModel(e.target.value)} placeholder="gpt-4o" />
                   </div>
                   <div className="demo-col">
+                    <label className="demo-label">Temperature</label>
+                    <input className="demo-input" type="number" step="0.1" min="0" max="2" value={llmTemperature} onChange={(e) => setLlmTemperature(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Mặc định" />
+                  </div>
+                </div>
+                <div className="demo-row">
+                  <div className="demo-col" style={{ flex: '1 1 100%' }}>
                     <label className="demo-label">API Key</label>
                     <input className="demo-input" type="password" value={llmApiKey}
                       onChange={(e) => setLlmApiKey(e.target.value)} placeholder="sk-..." />

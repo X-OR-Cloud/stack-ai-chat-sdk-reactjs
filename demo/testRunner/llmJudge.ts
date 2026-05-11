@@ -36,12 +36,29 @@ ${JSON.stringify(result.stats, null, 2)}
 ### Danh sách events (${result.events.length} events)
 \`\`\`json
 ${JSON.stringify(
-  result.events.map((e) => ({
-    kind: e.kind,
-    ts: new Date(e.ts).toLocaleTimeString('vi-VN'),
-    ...(e.responseTimeMs != null ? { responseTimeMs: e.responseTimeMs } : {}),
-    data: e.data,
-  })),
+  result.events.map((e) => {
+    let data: any = e.data
+    if (data && typeof data === 'object') {
+      data = { ...data }
+      // Truncate RAG source contents to avoid blowing up context length
+      if (Array.isArray(data.sources)) {
+        data.sources = data.sources.map((s: any) => ({
+          ...s,
+          content: typeof s.content === 'string' ? s.content.slice(0, 100) + '... [TRUNCATED]' : s.content,
+        }))
+      }
+      // Omit SDK config from init event since it's already shown at the top
+      if (e.kind === 'sdk:init' && data.config) {
+        data.config = '[OMITTED_TO_SAVE_SPACE]'
+      }
+    }
+    return {
+      kind: e.kind,
+      ts: new Date(e.ts).toLocaleTimeString('vi-VN'),
+      ...(e.responseTimeMs != null ? { responseTimeMs: e.responseTimeMs } : {}),
+      data,
+    }
+  }),
   null,
   2,
 )}
@@ -82,7 +99,7 @@ Hãy phân tích và tạo báo cáo đánh giá chi tiết theo hướng dẫn 
         { role: 'system', content: config.systemPrompt },
         { role: 'user', content: userContent },
       ],
-      temperature: 0.3,
+      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
     }),
   })
 

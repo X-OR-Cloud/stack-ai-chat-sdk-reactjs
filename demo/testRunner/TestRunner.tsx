@@ -51,9 +51,33 @@ export function TestRunner({ sdkConfig, llmConfig, scenarioJson }: Props) {
 
   function handleRun() {
     try {
-      const scenario = JSON.parse(scenarioJson) as TestScenario
+      let scenario = JSON.parse(scenarioJson) as any
       setParseError(null)
-      run(scenario, sdkConfig)
+
+      // Auto-convert nested testSuite format to flat TestScenario
+      if (scenario.testSuite && Array.isArray(scenario.scenarios)) {
+        const flatMessages: any[] = []
+        const defaultTimeout = scenario.config?.defaultTimeoutMs || 60000
+
+        for (const s of scenario.scenarios) {
+          if (Array.isArray(s.steps)) {
+            for (const step of s.steps) {
+              flatMessages.push({ text: step.text, delayAfter: defaultTimeout })
+            }
+          }
+        }
+        
+        scenario = {
+          name: scenario.testSuite,
+          description: `Phiên bản: ${scenario.version || '1.0'}`,
+          formData: scenario.formData,
+          messages: flatMessages,
+          testReopen: false,
+          interMessageIdleMs: scenario.config?.interMessageIdleMs
+        }
+      }
+
+      run(scenario as TestScenario, sdkConfig)
     } catch (e) {
       setParseError(`Scenario JSON không hợp lệ: ${e}`)
     }

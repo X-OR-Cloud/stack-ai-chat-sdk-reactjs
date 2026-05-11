@@ -98,6 +98,8 @@ export function useTestRunner() {
         conversationResolveRef.current = resolve
       })
 
+      let responseResolve: (() => void) | null = null
+
       const testConfig: SDKConfig = {
         ...(sdkConfig as SDKConfig),
         onConnected: () => {
@@ -132,6 +134,10 @@ export function useTestRunner() {
             lastSentTsRef.current != null ? Date.now() - lastSentTsRef.current : undefined
           pushEvent(makeEvent('message:received', msg, responseTimeMs))
           lastSentTsRef.current = null
+          if (responseResolve) {
+            responseResolve()
+            responseResolve = null
+          }
           ;(sdkConfig as SDKConfig).onMessage?.(msg)
         },
         onRawMessage: (raw) => {
@@ -182,14 +188,28 @@ export function useTestRunner() {
         ])
 
         // ── Send messages sequentially via StackAIChat.sendMessage ─────────────
-        for (const msg of scenario.messages) {
+        const messagesToRun = Array.isArray(scenario.messages) ? scenario.messages : []
+        for (const msg of messagesToRun) {
           await sleep(500)
+
+          const responsePromise = new Promise<void>((resolve) => {
+            responseResolve = resolve
+          })
 
           lastSentTsRef.current = Date.now()
           StackAIChat.sendMessage(msg.text)
           pushEvent(makeEvent('message:sent', { text: msg.text }))
 
-          if (msg.delayAfter) await sleep(msg.delayAfter)
+          const timeoutMs = msg.delayAfter || 30000
+          await Promise.race([
+            responsePromise,
+            sleep(timeoutMs).then(() => {
+              responseResolve = null
+            })
+          ])
+          
+          const idleMs = scenario.interMessageIdleMs ?? 500
+          await sleep(idleMs) // Padding before next message
         }
 
         // ── Test reopen (history reload) ────────────────────────────────────────

@@ -29,6 +29,7 @@ export function Report({ result, llmConfig }: Props) {
   const [judging, setJudging] = useState(false)
   const [report, setReport] = useState<JudgeReport | null>(null)
   const [judgeError, setJudgeError] = useState<string | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState(false)
   const { stats } = result
 
   async function handleJudge() {
@@ -46,6 +47,14 @@ export function Report({ result, llmConfig }: Props) {
     } finally {
       setJudging(false)
     }
+  }
+
+  function copyReport() {
+    if (!report) return
+    navigator.clipboard.writeText(report.markdown).then(() => {
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 2000)
+    })
   }
 
   const durationSec = ((result.finishedAt - result.startedAt) / 1000).toFixed(1)
@@ -120,8 +129,11 @@ export function Report({ result, llmConfig }: Props) {
       {/* LLM Report */}
       {report && (
         <div className="tr-section">
-          <div className="tr-section__title">
-            Báo cáo LLM · {new Date(report.generatedAt).toLocaleTimeString('vi-VN')}
+          <div className="tr-section__title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Báo cáo LLM · {new Date(report.generatedAt).toLocaleTimeString('vi-VN')}</span>
+            <button className="demo-btn demo-btn--ghost demo-btn--xs" onClick={copyReport}>
+              {copyFeedback ? '✅ Đã copy' : '📋 Copy Text'}
+            </button>
           </div>
           <div
             className="tr-report-md"

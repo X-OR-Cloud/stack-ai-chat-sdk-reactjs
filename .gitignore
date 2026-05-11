@@ -9,3 +9,6 @@ scripts
 scripts/*
 test
 test/*
+
+# Local test data files (not for commit)
+demo/dvc-full-test.json
