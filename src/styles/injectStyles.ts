@@ -142,6 +142,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 }
 .chat-window.bottom-right { right: 24px; }
 .chat-window.bottom-left  { left: 24px; }
+.chat-window.is-hidden    { display: none !important; }
 
 /* Expanded mode — PC */
 .chat-window.expanded { width: 50vw; height: 80vh; max-height: 80vh; bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; transition: width 200ms ease, height 200ms ease; }
@@ -327,8 +328,8 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .md-body .md-code-inline { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88em; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,0.12); }
 .message-row.user .md-code-inline { background: rgba(255,255,255,0.2); }
 .md-body .md-code-block { margin: 4px 0; padding: 10px 12px; border-radius: var(--sai-radius-sm); background: rgba(0,0,0,0.15); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
-.md-body .md-link { color: inherit; text-decoration: underline; opacity: 0.9; }
-.md-body .md-link:hover { opacity: 1; }
+.md-body .md-link { color: var(--sai-primary); text-decoration: underline; transition: color var(--sai-transition); }
+.md-body .md-link:hover { color: var(--sai-primary-hover); }
 .md-body .md-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; }
 .md-body .md-table th, .md-body .md-table td { padding: 6px 10px; border: 1px solid var(--sai-border); }
 .md-body .md-table th { font-weight: 600; background: rgba(0,0,0,0.05); }

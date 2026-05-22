@@ -38,7 +38,7 @@ export function ChatWidget({ config }: ChatWidgetProps) {
   return (
     <>
       <ChatButton position={position} />
-      {isOpen && <ChatWindow position={position} />}
+      <ChatWindow position={position} />
     </>
   )
 }

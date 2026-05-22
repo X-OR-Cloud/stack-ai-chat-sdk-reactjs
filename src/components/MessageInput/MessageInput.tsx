@@ -1,4 +1,4 @@
-import { useState, useRef, KeyboardEvent, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react'
 import type { AttachmentsConfig, AttachmentItem } from '../../types'
 import { filesToBase64, formatFileSize } from '../../utils/fileToBase64'
 import { useChatStore } from '../../store/chatStore'
@@ -27,6 +27,7 @@ export function MessageInput({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isSubmittingRef = useRef(false)
 
   const reference = useChatStore((s) => s.reference)
   const setReference = useChatStore((s) => s.setReference)
@@ -41,6 +42,12 @@ export function MessageInput({
       ? reference.slice(0, REFERENCE_MAX_LEN) + '…'
       : reference
     : null
+
+  useEffect(() => {
+    if (!disabled) {
+      isSubmittingRef.current = false
+    }
+  }, [disabled])
 
   function autoResize() {
     const el = textareaRef.current
@@ -66,7 +73,9 @@ export function MessageInput({
   function handleSend() {
     const trimmed = text.trim()
     if (!trimmed && attachments.length === 0) return
-    if (disabled || isUploading) return
+    if (disabled || isUploading || isSubmittingRef.current) return
+
+    isSubmittingRef.current = true
 
     // Prepend reference as quote if present
     const content = reference

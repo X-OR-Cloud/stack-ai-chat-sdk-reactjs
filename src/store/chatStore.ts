@@ -18,6 +18,7 @@ interface ChatState {
   conversationId: string | null
   messages: Message[]
   isAgentTyping: boolean
+  isWaitingForAgent: boolean
 
   // Reference quote injected by host webapp
   reference: string | null
@@ -39,6 +40,7 @@ interface ChatState {
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
+  setWaitingForAgent: (waiting: boolean) => void
   reset: () => void
   resetSession: () => void
 }
@@ -51,6 +53,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   conversationId: null,
   messages: [],
   isAgentTyping: false,
+  isWaitingForAgent: false,
   reference: null,
   userFields: {},
 
@@ -103,11 +106,14 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
+  setWaitingForAgent: (waiting) => set({ isWaitingForAgent: waiting }),
+
   resetSession: () =>
     set({
       conversationId: null,
       messages: [],
       isAgentTyping: false,
+      isWaitingForAgent: false,
       reference: null,
     }),
 
@@ -119,6 +125,7 @@ export const useChatStore = create<ChatState>()((set) => ({
       conversationId: null,
       messages: [],
       isAgentTyping: false,
+      isWaitingForAgent: false,
       reference: null,
       userFields: {},
     }),

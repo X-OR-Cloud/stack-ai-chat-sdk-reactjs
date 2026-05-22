@@ -77,6 +77,7 @@ export function useSocket() {
   const failMessage = useChatStore((s) => s.failMessage)
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
   const setConversationId = useChatStore((s) => s.setConversationId)
+  const setWaitingForAgent = useChatStore((s) => s.setWaitingForAgent)
 
   const injectGreeting = useCallback(() => {
     const greeting = config?.greeting
@@ -163,6 +164,8 @@ export function useSocket() {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
+      forceNew: true,
+      multiplex: false,
     })
 
     socketRef.current = socket
@@ -176,7 +179,7 @@ export function useSocket() {
       // Token đã chứa agentId — server tự associate agent cho conversation.
       // Chỉ join lại conversation nếu host app truyền explicit conversationId qua config.
       // KHÔNG dùng store.conversationId vì nó có thể là stale/shared từ session trước.
-      const knownConvId = config.conversationId
+      const knownConvId = useChatStore.getState().conversationId || config.conversationId
       if (knownConvId) {
         socket.emit('conversation:join', { conversationId: knownConvId }, (res: { success: boolean; conversationId?: string }) => {
           if (res.success && res.conversationId) {
@@ -199,6 +202,7 @@ export function useSocket() {
     socket.on('disconnect', (reason) => {
       isConnectingRef.current = false
       config.onDisconnected?.()
+      setWaitingForAgent(false)
       // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
       // Nếu là intentional disconnect (destroy/close) thì bỏ qua
       if (!isIntentionalDisconnectRef.current) {
@@ -211,6 +215,7 @@ export function useSocket() {
 
     socket.on('connect_error', (err) => {
       isConnectingRef.current = false
+      setWaitingForAgent(false)
       // Sau nhiều lần retry thất bại → về form để user có thể reconnect
       setPhase('form')
 
@@ -261,6 +266,7 @@ export function useSocket() {
 
     socket.on('message:error', (payload: { error: string }) => {
       config.onError?.(payload.error)
+      setWaitingForAgent(false)
     })
 
     socket.on('message:sent', (payload: MessageSentPayload) => {
@@ -296,6 +302,11 @@ export function useSocket() {
         lastAssistantMessageAt = Date.now()
         setAgentTyping(false)
         if (typingTimeout) clearTimeout(typingTimeout)
+        
+        // Final text response received -> Turn is complete, unlock input
+        if (payload.type === 'message' || !payload.type) {
+          setWaitingForAgent(false)
+        }
       }
 
       // 3. Skip non-user-visible content
@@ -312,7 +323,7 @@ export function useSocket() {
       }
       // user messages từ server (echo) không cần add lại vì đã có optimistic
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent])
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true
@@ -322,10 +333,13 @@ export function useSocket() {
     socketRef.current?.disconnect()        // fires 'disconnect' event — flag=true guards the handler
     socketRef.current?.removeAllListeners()
     socketRef.current = null
+    useChatStore.getState().setWaitingForAgent(false)
   }, [])
 
   const sendMessage = useCallback((payload: SendMessagePayload) => {
     if (!socketRef.current?.connected) return
+
+    setWaitingForAgent(true)
 
     const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
@@ -355,8 +369,9 @@ export function useSocket() {
         (m) => m.localId === localId && m.status === 'sending'
       )
       if (current) failMessage(localId)
+      useChatStore.getState().setWaitingForAgent(false)
     }, 60_000)
-  }, [addMessage, failMessage])
+  }, [addMessage, failMessage, setWaitingForAgent])
 
   useEffect(() => {
     registerSendMessage((payload) => sendMessage(payload))
