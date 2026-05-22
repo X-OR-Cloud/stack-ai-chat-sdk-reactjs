@@ -154,6 +154,36 @@ Pattern singleton cho phép `StackAIChat.sendMessage()` / `StackAIChat.connect()
 
 ---
 
+## Git Branch Strategy
+
+### Cấu trúc nhánh
+```
+main          ← production, protected — chỉ merge từ staging
+  └── staging ← buffer/integration trước khi release
+        ├── dunghv/<feature-or-fix>   ← Tony Hoang
+        └── hantv/<feature-or-fix>    ← Hà Nguyễn
+```
+
+### Quy trình
+- **Phát triển**: tạo nhánh cá nhân từ `staging` với prefix `dunghv/` hoặc `hantv/`
+- **Tích hợp**: PR từ nhánh cá nhân → `staging` (cần review trước khi merge)
+- **Release**: merge `staging` → `main` khi sẵn sàng, kèm backup tag
+
+### Backup trước khi merge vào main
+```bash
+# Tạo tag snapshot trước khi merge staging → main
+git tag backup/v0.x.x-pre-merge
+git push origin backup/v0.x.x-pre-merge
+```
+Dùng tag thay vì nhánh backup để tránh rác repo. List toàn bộ: `git tag -l "backup/*"`.
+
+### Quy tắc bắt buộc
+- `main` — **không push trực tiếp**, chỉ merge qua PR từ `staging`
+- Nhánh cá nhân phải có prefix `dunghv/` hoặc `hantv/` để tránh đụng tên
+- Xóa nhánh cá nhân sau khi đã merge vào `staging`
+
+---
+
 ## Quy tắc Phát Triển cho Antigravity
 
 1. **Shadow DOM First**: Mọi UI change → chỉnh `injectStyles.ts` (CSS) hoặc component TSX. Không expect global styles hoạt động.
