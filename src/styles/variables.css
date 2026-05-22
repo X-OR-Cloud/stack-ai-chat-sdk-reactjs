@@ -47,6 +47,18 @@
 
   /* Z-index */
   --sai-z: 999999;
+
+  /* Collapsible block */
+  --sai-collapsible-bg: #f5f7fa;
+  --sai-collapsible-bg-hover: #eef1f6;
+  --sai-collapsible-text: #6b7280;
+  --sai-collapsible-border: #e5e7eb;
+  --sai-collapsible-body-bg: #fafbfc;
+
+  /* Notice banner */
+  --sai-notice-bg: #f0f6ff;
+  --sai-notice-border: #bfdbfe;
+  --sai-notice-text: #3b82f6;
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
@@ -74,4 +86,16 @@
   --sai-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --sai-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --sai-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  /* Collapsible block */
+  --sai-collapsible-bg: #1e2a3a;
+  --sai-collapsible-bg-hover: #243040;
+  --sai-collapsible-text: #94a3b8;
+  --sai-collapsible-border: #2d3748;
+  --sai-collapsible-body-bg: #192030;
+
+  /* Notice banner */
+  --sai-notice-bg: #1e2d45;
+  --sai-notice-border: #2563eb;
+  --sai-notice-text: #60a5fa;
 }

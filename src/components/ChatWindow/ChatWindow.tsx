@@ -15,20 +15,53 @@ interface ChatWindowProps {
 
 export function ChatWindow({ position }: ChatWindowProps) {
   const config = useChatStore((s) => s.config)
+  const isOpen = useChatStore((s) => s.isOpen)
   const phase = useChatStore((s) => s.phase)
   const setPhase = useChatStore((s) => s.setPhase)
   const setUserFields = useChatStore((s) => s.setUserFields)
   const close = useChatStore((s) => s.close)
   const isExpanded = useChatStore((s) => s.isExpanded)
   const toggleExpanded = useChatStore((s) => s.toggleExpanded)
+  const isAgentTyping = useChatStore((s) => s.isAgentTyping)
+  const isWaitingForAgent = useChatStore((s) => s.isWaitingForAgent)
+  const hasPending = useChatStore((s) => s.messages.some((m) => m.status === 'sending'))
+  const isProcessing = isAgentTyping || hasPending || isWaitingForAgent
 
   const { connect, sendMessage } = useSocket()
   const session = useSession(config?.session)
+  const savedFields = session.load()
 
   useEffect(() => {
     registerConnect(connect)
     return () => unregisterConnect()
   }, [connect])
+
+  // Bug fix: khi ChatWindow remount (close → reopen) mà phase vẫn là 'chat'
+  // socket đã bị disconnect do unmount → cần reconnect lại
+  useEffect(() => {
+    if (phase === 'chat') {
+      connect()
+    }
+  // Chỉ chạy 1 lần khi mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Tự động bỏ qua Form Pre-Chat nếu không yêu cầu trường thông tin nào,
+  // hoặc đã có phiên hoạt động được lưu từ trước và chế độ lưu phiên (persist) đang bật.
+  useEffect(() => {
+    if (phase !== 'form') return
+
+    const hasFields = !!config?.fields && config.fields.length > 0
+    const hasSavedSession = !!savedFields && !!config?.session?.persist
+
+    if (!hasFields || hasSavedSession) {
+      if (hasSavedSession && savedFields) {
+        setUserFields(savedFields)
+      }
+      setPhase('connecting')
+      connect()
+    }
+  }, [phase, config?.fields, config?.session?.persist, savedFields, setPhase, connect, setUserFields])
 
   function handleFormSubmit(values: Record<string, string>) {
     setUserFields(values)
@@ -48,11 +81,8 @@ export function ChatWindow({ position }: ChatWindowProps) {
 
   if (!config) return null
 
-  // Resolve initial values from session
-  const savedFields = session.load()
-
   return (
-    <div className={`chat-window ${position}${isExpanded ? ' expanded' : ''}`} role="dialog" aria-modal="true" aria-label={config.title ?? 'Chat'}>
+    <div className={`chat-window ${position}${isExpanded ? ' expanded' : ''}${!isOpen ? ' is-hidden' : ''}`} role="dialog" aria-modal="true" aria-label={config.title ?? 'Chat'}>
       {/* Header */}
       <div className="chat-header">
         <div className="chat-header__left">
@@ -120,6 +150,8 @@ export function ChatWindow({ position }: ChatWindowProps) {
           <MessageInput
             onSend={handleSend}
             attachmentsConfig={config.attachments}
+            maxInputLength={config.maxInputLength}
+            disabled={isProcessing}
           />
         </>
       )}

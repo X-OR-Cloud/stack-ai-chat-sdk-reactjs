@@ -18,6 +18,7 @@ interface ChatState {
   conversationId: string | null
   messages: Message[]
   isAgentTyping: boolean
+  isWaitingForAgent: boolean
 
   // Reference quote injected by host webapp
   reference: string | null
@@ -39,7 +40,9 @@ interface ChatState {
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
+  setWaitingForAgent: (waiting: boolean) => void
   reset: () => void
+  resetSession: () => void
 }
 
 export const useChatStore = create<ChatState>()((set) => ({
@@ -50,6 +53,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   conversationId: null,
   messages: [],
   isAgentTyping: false,
+  isWaitingForAgent: false,
   reference: null,
   userFields: {},
 
@@ -77,7 +81,12 @@ export const useChatStore = create<ChatState>()((set) => ({
     set((state) => ({ messages: [...state.messages, message] })),
 
   prependMessages: (messages) =>
-    set((state) => ({ messages: [...messages, ...state.messages] })),
+    set((state) => {
+      const existingIds = new Set(state.messages.map((m) => m.messageId).filter(Boolean))
+      const deduped = messages.filter((m) => !m.messageId || !existingIds.has(m.messageId))
+      if (!deduped.length) return state
+      return { messages: [...deduped, ...state.messages] }
+    }),
 
   confirmMessage: (localId, messageId, timestamp) =>
     set((state) => ({
@@ -97,6 +106,17 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
+  setWaitingForAgent: (waiting) => set({ isWaitingForAgent: waiting }),
+
+  resetSession: () =>
+    set({
+      conversationId: null,
+      messages: [],
+      isAgentTyping: false,
+      isWaitingForAgent: false,
+      reference: null,
+    }),
+
   reset: () =>
     set({
       isOpen: false,
@@ -105,6 +125,7 @@ export const useChatStore = create<ChatState>()((set) => ({
       conversationId: null,
       messages: [],
       isAgentTyping: false,
+      isWaitingForAgent: false,
       reference: null,
       userFields: {},
     }),

@@ -114,13 +114,19 @@ export interface SDKConfig {
   // Default: true
   showReferences?: boolean
 
+  // Greeting — message shown immediately after connection, before any user input.
+  greeting?: string
+
+  // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
+  maxInputLength?: number
+
   // Callbacks
   onOpen?: () => void
   onClose?: () => void
   onConnected?: () => void
   onConversationJoined?: (conversationId: string) => void
   onDisconnected?: () => void
-  onError?: (message: string) => void
+  onError?: (message: string, detail?: Record<string, unknown>) => void
   onMessage?: (message: Message) => void
   /** Debug: raw WebSocket payload before filtering. Useful for inspecting server data. */
   onRawMessage?: (payload: Record<string, unknown>) => void
@@ -177,7 +183,7 @@ export interface MessageSource {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice'
+export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
 
 export interface Message {
   /** Local temp id before server confirms */

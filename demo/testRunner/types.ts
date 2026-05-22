@@ -13,6 +13,7 @@ export interface TestScenario {
   messages: TestMessage[]
   testReopen?: boolean // destroy + reinit after all messages to test history reload
   reopenDelay?: number // ms before reinit (default 1000)
+  interMessageIdleMs?: number // ms to wait after receiving response before next message
 }
 
 export type EventKind =
@@ -69,9 +70,26 @@ export interface LLMJudgeConfig {
   apiKey: string
   model: string
   systemPrompt: string
+  temperature?: number
 }
 
 export interface JudgeReport {
   markdown: string
   generatedAt: number
+}
+
+export interface TestRunnerBundle {
+  connection: {
+    wsUrl: string
+    socketPath?: string
+    token: string
+  }
+  llmJudge: {
+    endpoint: string
+    apiKey: string
+    model: string
+    systemPrompt: string
+    temperature?: number
+  }
+  scenario: TestScenario
 }

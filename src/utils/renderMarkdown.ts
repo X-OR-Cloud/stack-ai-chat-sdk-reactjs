@@ -14,33 +14,53 @@ function escapeHtml(str: string): string {
 }
 
 function inlineMarkdown(text: string): string {
-  return (
-    text
-      // Escape HTML first
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      // Inline code: `code`
-      .replace(/`([^`]+)`/g, '<code class="md-code-inline">$1</code>')
-      // Bold+italic: ***text***
-      .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-      // Bold: **text**
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // Italic: *text* or _text_
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/_(.+?)_/g, '<em>$1</em>')
-      // Strikethrough: ~~text~~
-      .replace(/~~(.+?)~~/g, '<del>$1</del>')
-      // Links: [text](url)
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_m, label, url) => {
-        const safeUrl = escapeHtml(url)
-        return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`
-      })
-  )
+  let html = text
+    // Escape HTML first
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Inline code: `code`
+    .replace(/`([^`]+)`/g, '<code class="md-code-inline">$1</code>')
+    // Bold+italic: ***text***
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    // Bold: **text**
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic: *text* or _text_
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/_(.+?)_/g, '<em>$1</em>')
+    // Strikethrough: ~~text~~
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    // Links: [text](url)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_m, label, url) => {
+      const safeUrl = escapeHtml(url)
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`
+    })
+
+  // Autolink plain URLs, skipping anything already inside <code> or <a> tags
+  const autolinkRegex = /(<code[^>]*>[\s\S]*?<\/code>|<a[^>]*>[\s\S]*?<\/a>)|(\bhttps?:\/\/[^\s<>()]+|\bwww\.[^\s<>()]+|\b[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*\.(?:gov\.vn|vn|com|net|org|edu|info|biz)(?:\/[^\s<>()]*)?\b)/gi
+  html = html.replace(autolinkRegex, (match, skippedTag, plainUrl) => {
+    if (skippedTag) {
+      return skippedTag
+    }
+    if (plainUrl) {
+      let href = plainUrl
+      if (!/^https?:\/\//i.test(href)) {
+        href = 'https://' + href
+      }
+      const safeUrl = escapeHtml(href)
+      const safeLabel = escapeHtml(plainUrl)
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${safeLabel}</a>`
+    }
+    return match
+  })
+
+  return html
 }
 
 export function renderMarkdown(raw: string): string {
-  const lines = raw.split('\n')
+  // Convert list numbering format like "1)" or "1) " to "1. " at the start of any line
+  const normalized = raw.replace(/^(\s*\d+)\)\s*/gm, '$1. ')
+  const lines = normalized.split('\n')
   const output: string[] = []
   let i = 0
 

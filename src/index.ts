@@ -5,6 +5,7 @@ import { useChatStore } from './store/chatStore'
 import { bridgeSendMessage, unregisterSendMessage, bridgeConnect, unregisterConnect } from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
 import type { SDKConfig } from './types'
+import { SDK_VERSION } from './version'
 
 // Re-export types for consumers
 export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message } from './types'
@@ -15,11 +16,15 @@ let cleanupThemeWatcher: (() => void) | null = null
 let currentConfig: SDKConfig | null = null
 
 export const StackAIChat = {
+  version: SDK_VERSION,
+
   init(config: SDKConfig): void {
     if (root) {
-      console.warn('[StackAIChat] Already initialized. Call destroy() first or use updateConfig().')
+      console.warn('[SDKChat] Already initialized. Call destroy() first or use updateConfig().')
       return
     }
+
+    console.info(`[SDKChat] SDK v${SDK_VERSION}`)
 
     currentConfig = config
 
@@ -69,7 +74,7 @@ export const StackAIChat = {
 
   updateConfig(partial: Partial<SDKConfig>): void {
     if (!root || !currentConfig) {
-      console.warn('[StackAIChat] Not initialized.')
+      console.warn('[SDKChat] Not initialized.')
       return
     }
     currentConfig = { ...currentConfig, ...partial }

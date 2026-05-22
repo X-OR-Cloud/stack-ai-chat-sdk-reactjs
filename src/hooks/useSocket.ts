@@ -11,20 +11,20 @@ import type {
 } from '../types'
 
 let typingTimeout: ReturnType<typeof setTimeout> | null = null
+let lastAssistantMessageAt = 0
 
-/**
- * NestJS Socket.IO gateway dùng namespace /ws/chat
- * wsUrl ví dụ: "wss://skt.x-or.cloud/ws/chat"
- * → connect tới origin "wss://skt.x-or.cloud" với namespace "/ws/chat"
- */
-function parseWsUrl(wsUrl: string): { origin: string; namespace: string } {
+// wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
+// wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
+export function resolveSocketParams(wsUrl: string, socketPathOverride?: string): { serverOrigin: string; socketPath: string } {
   try {
     const u = new URL(wsUrl)
-    const namespace = u.pathname && u.pathname !== '/' ? u.pathname : '/'
-    const origin = `${u.protocol}//${u.host}`
-    return { origin, namespace }
+    const base = u.pathname !== '/' ? u.pathname.replace(/\/$/, '') : ''
+    return {
+      serverOrigin: u.origin,
+      socketPath: socketPathOverride ?? (base + '/socket.io'),
+    }
   } catch {
-    return { origin: wsUrl, namespace: '/' }
+    return { serverOrigin: wsUrl, socketPath: socketPathOverride ?? '/socket.io' }
   }
 }
 
@@ -65,7 +65,10 @@ function mapServerMessage(payload: ServerMessage): Message {
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const isConnectingRef = useRef(false)
+  const isIntentionalDisconnectRef = useRef(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
+  const greetingInjectedRef = useRef(false)
+  const myUserIdRef = useRef<string | null>(null)
   const config = useChatStore((s) => s.config)
   const setPhase = useChatStore((s) => s.setPhase)
   const addMessage = useChatStore((s) => s.addMessage)
@@ -74,33 +77,70 @@ export function useSocket() {
   const failMessage = useChatStore((s) => s.failMessage)
   const setAgentTyping = useChatStore((s) => s.setAgentTyping)
   const setConversationId = useChatStore((s) => s.setConversationId)
+  const setWaitingForAgent = useChatStore((s) => s.setWaitingForAgent)
+
+  const injectGreeting = useCallback(() => {
+    const greeting = config?.greeting
+    if (!greeting || greetingInjectedRef.current) return
+    greetingInjectedRef.current = true
+    addMessage({
+      localId: `greeting_${Date.now()}`,
+      role: 'assistant',
+      content: greeting,
+      type: 'message',
+      status: 'sent',
+      attachments: [],
+      sources: [],
+      timestamp: new Date().toISOString(),
+    })
+  }, [config, addMessage])
 
   const loadHistory = useCallback((socket: Socket, convId: string) => {
     const allowedTypes = config?.visibleMessageTypes ?? ['message']
     const hiddenPatterns = config?.hiddenPatterns ?? []
 
+    // Sync seenIdsRef từ messages đang có trong store (tránh duplicate sau reconnect)
+    const existingMessages = useChatStore.getState().messages
+    existingMessages.forEach((m) => { if (m.messageId) seenIdsRef.current.add(m.messageId) })
+
     socket.emit('conversation:history', { conversationId: convId, limit: 50 }, (res: {
       success: boolean
       data?: ServerMessage[]
     }) => {
-      if (res.success && res.data?.length) {
-        const messages = res.data
-          .filter((m) => !m.type || allowedTypes.includes(m.type as any))
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .filter((m) => !m.skipAgent)
-          .filter((m) => !isHiddenByPattern(m.content, hiddenPatterns))
-          .map((m) => {
-            const mapped = mapServerMessage(m)
-            if (mapped.messageId) seenIdsRef.current.add(mapped.messageId)
-            return mapped
-          })
-        if (messages.length) prependMessages(messages)
+      const rawMessages = res?.data ?? []
+      const messages = rawMessages
+        .filter((m) => !m.type || allowedTypes.includes(m.type as any))
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .filter((m) => !m.skipAgent)
+        .filter((m) => !isHiddenByPattern(m.content, hiddenPatterns))
+        .map((m) => {
+          const mapped = mapServerMessage(m)
+          if (mapped.messageId) seenIdsRef.current.add(mapped.messageId)
+          return mapped
+        })
+      if (messages.length) {
+        prependMessages(messages)
+        // Divider separates history from new session
+        addMessage({
+          localId: `divider_${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          type: 'divider',
+          status: 'sent',
+          attachments: [],
+          sources: [],
+        })
+        injectGreeting()
+      } else {
+        // No history → fresh conversation, show greeting only
+        injectGreeting()
       }
     })
-  }, [config, prependMessages])
+  }, [config, prependMessages, injectGreeting])
 
   const connect = useCallback(() => {
     if (!config) return
+    isIntentionalDisconnectRef.current = false
     if (socketRef.current?.connected) return
     if (isConnectingRef.current) return
 
@@ -114,20 +154,18 @@ export function useSocket() {
     isConnectingRef.current = true
     setPhase('connecting')
 
-    // Clear stale conversationId từ session trước để không leak sang connection mới
-    if (!config.conversationId) {
-      setConversationId(null)
-    }
+    const { serverOrigin, socketPath } = resolveSocketParams(config.wsUrl, config.socketPath)
 
-    const { origin, namespace } = parseWsUrl(config.wsUrl)
-
-    const socket = io(`${origin}${namespace}`, {
+    const socket = io(serverOrigin, {
+      path: socketPath,
       auth: { token: config.token },
       query: { token: config.token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
+      forceNew: true,
+      multiplex: false,
     })
 
     socketRef.current = socket
@@ -141,18 +179,22 @@ export function useSocket() {
       // Token đã chứa agentId — server tự associate agent cho conversation.
       // Chỉ join lại conversation nếu host app truyền explicit conversationId qua config.
       // KHÔNG dùng store.conversationId vì nó có thể là stale/shared từ session trước.
-      const knownConvId = config.conversationId
+      const knownConvId = useChatStore.getState().conversationId || config.conversationId
       if (knownConvId) {
         socket.emit('conversation:join', { conversationId: knownConvId }, (res: { success: boolean; conversationId?: string }) => {
           if (res.success && res.conversationId) {
+            const currentConvId = useChatStore.getState().conversationId
             setConversationId(res.conversationId)
-            config.onConversationJoined?.(res.conversationId)
-            loadHistory(socket, res.conversationId)
+            // Only load history if this is a new conversation (not a reconnect to same session)
+            if (currentConvId !== res.conversationId) {
+              config.onConversationJoined?.(res.conversationId)
+              loadHistory(socket, res.conversationId)
+            }
           }
           setPhase('chat')
         })
       } else {
-        // Anonymous / new session: server sẽ tạo conversation và gửi conversationId qua presence:update
+        // Anonymous / new session — greeting sẽ inject sau loadHistory (qua presence:update)
         setPhase('chat')
       }
     })
@@ -160,13 +202,34 @@ export function useSocket() {
     socket.on('disconnect', (reason) => {
       isConnectingRef.current = false
       config.onDisconnected?.()
-      config.onError?.(`Disconnected: ${reason}`)
+      setWaitingForAgent(false)
+      // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
+      // Nếu là intentional disconnect (destroy/close) thì bỏ qua
+      if (!isIntentionalDisconnectRef.current) {
+        config.onError?.(`Disconnected: ${reason}`)
+        // Nếu server cắt kỳ do idle hoặc network, set phase connecting
+        // để UI show spinner thay vì để người dùng gõ vào void
+        setPhase('connecting')
+      }
     })
 
     socket.on('connect_error', (err) => {
       isConnectingRef.current = false
+      setWaitingForAgent(false)
+      // Sau nhiều lần retry thất bại → về form để user có thể reconnect
       setPhase('form')
-      config.onError?.(err.message)
+
+      const e = err as Error & {
+        data?: unknown
+        type?: string
+        context?: { status?: number; responseText?: string }
+      }
+      const detail: Record<string, unknown> = { type: e.type ?? 'connect_error' }
+      if (e.context?.status)       detail.httpStatus    = e.context.status
+      if (e.context?.responseText) detail.httpResponse  = e.context.responseText.slice(0, 500)
+      if (e.data !== undefined)    detail.serverData    = e.data
+
+      config.onError?.(e.message, detail)
     })
 
     // ── Business events ──────────────────────────────────────────────────────
@@ -175,7 +238,26 @@ export function useSocket() {
       config.onPresenceUpdate?.(payload)
 
       if (payload.type === 'anonymous' && payload.conversationId) {
-        // Anonymous: server auto-creates conversation, gửi conversationId ở đây
+        // Ghi nhớ userId của chính mình từ event đầu tiên
+        if (!myUserIdRef.current && payload.userId) {
+          myUserIdRef.current = payload.userId
+        }
+        // Bỏ qua event của user khác (server broadcast cho cả agent)
+        if (payload.userId && myUserIdRef.current && payload.userId !== myUserIdRef.current) return
+
+        const currentConvId = useChatStore.getState().conversationId
+
+        // Same conversation reconnect — skip load history, messages already in store
+        if (currentConvId === payload.conversationId) return
+
+        // Different or no conversationId: new session assigned by server.
+        // Clear messages and seenIds so history isn't duplicated across sessions.
+        if (currentConvId && currentConvId !== payload.conversationId) {
+          useChatStore.getState().resetSession()
+          seenIdsRef.current = new Set()
+          greetingInjectedRef.current = false
+        }
+
         setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
@@ -184,6 +266,7 @@ export function useSocket() {
 
     socket.on('message:error', (payload: { error: string }) => {
       config.onError?.(payload.error)
+      setWaitingForAgent(false)
     })
 
     socket.on('message:sent', (payload: MessageSentPayload) => {
@@ -195,9 +278,11 @@ export function useSocket() {
     })
 
     socket.on('agent:typing', () => {
+      // Ignore late typing events that arrive after a final assistant message
+      if (Date.now() - lastAssistantMessageAt < 2000) return
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
-      typingTimeout = setTimeout(() => setAgentTyping(false), 3000)
+      typingTimeout = setTimeout(() => setAgentTyping(false), 10000)
     })
 
     socket.on('message:new', (payload: ServerMessage) => {
@@ -211,34 +296,50 @@ export function useSocket() {
         seenIdsRef.current.add(id)
       }
 
-      // 2. Skip non-user-visible content
+      // 2. Clear typing for any assistant message before type filtering —
+      //    filtered messages (tool_use, thinking, etc.) also signal agent is done
+      if (payload.role === 'assistant' && !payload.skipAgent) {
+        lastAssistantMessageAt = Date.now()
+        setAgentTyping(false)
+        if (typingTimeout) clearTimeout(typingTimeout)
+        
+        // Final text response received -> Turn is complete, unlock input
+        if (payload.type === 'message' || !payload.type) {
+          setWaitingForAgent(false)
+        }
+      }
+
+      // 3. Skip non-user-visible content
       if (payload.role === 'assistant' && payload.skipAgent) return
       const allowedTypes = config?.visibleMessageTypes ?? ['message']
       if (payload.type && !allowedTypes.includes(payload.type as any)) return
       if (isHiddenByPattern(payload.content, config?.hiddenPatterns ?? [])) return
 
-      // 3. Process
+      // 4. Process
       if (payload.role === 'assistant') {
-        setAgentTyping(false)
-        if (typingTimeout) clearTimeout(typingTimeout)
-
         const message = mapServerMessage(payload)
         addMessage(message)
         config.onMessage?.(message)
       }
       // user messages từ server (echo) không cần add lại vì đã có optimistic
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent])
 
   const disconnect = useCallback(() => {
+    isIntentionalDisconnectRef.current = true
     isConnectingRef.current = false
+    greetingInjectedRef.current = false
+    myUserIdRef.current = null
+    socketRef.current?.disconnect()        // fires 'disconnect' event — flag=true guards the handler
     socketRef.current?.removeAllListeners()
-    socketRef.current?.disconnect()
     socketRef.current = null
+    useChatStore.getState().setWaitingForAgent(false)
   }, [])
 
   const sendMessage = useCallback((payload: SendMessagePayload) => {
     if (!socketRef.current?.connected) return
+
+    setWaitingForAgent(true)
 
     const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
@@ -262,14 +363,15 @@ export function useSocket() {
       ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
     })
 
-    // Fallback: mark failed nếu 10s không nhận confirm
+    // Fallback: mark failed nếu 60s không nhận ack (missing confirm / server issue)
     setTimeout(() => {
       const current = useChatStore.getState().messages.find(
         (m) => m.localId === localId && m.status === 'sending'
       )
       if (current) failMessage(localId)
-    }, 10_000)
-  }, [addMessage, failMessage])
+      useChatStore.getState().setWaitingForAgent(false)
+    }, 60_000)
+  }, [addMessage, failMessage, setWaitingForAgent])
 
   useEffect(() => {
     registerSendMessage((payload) => sendMessage(payload))
