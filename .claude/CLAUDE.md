@@ -105,29 +105,34 @@ demo/
 **Events lắng nghe từ server:**
 | Event | Xử lý |
 |---|---|
-| `connect` | Join conversation (nếu có `config.conversationId`), chuyển phase → 'chat' |
-| `disconnect` | Gọi `onDisconnected`, `onError` |
-| `connect_error` | Reset phase → 'form', gọi `onError` |
+| `connect` | Join lại room mỗi lần connect: `agent:connect` (user flow, có `config.agentId`) hoặc `conversation:join` (đã biết conversationId), chuyển phase → 'chat' |
+| `disconnect` | Gọi `onDisconnected`, clear streaming/typing, phase → 'connecting' để Socket.IO tự reconnect |
+| `connect_error` | Gọi `onError`; sau 5 lần fail liên tiếp → phase 'form' (Socket.IO vẫn retry nền, backoff 1s→5s) |
 | `presence:update` | Anonymous flow: nhận `conversationId` từ server, load history |
-| `message:new` | Dedup → filter type/pattern → `addMessage` → `onMessage` callback |
-| `message:sent` | Confirm optimistic message (localId → messageId) |
-| `agent:typing` | Set `isAgentTyping = true`, auto-clear sau 8s |
+| `message:chunk` | Streaming delta: buffer theo `actionId`, sort `chunkIndex`, render bubble streaming (`store.streaming`) |
+| `message:new` | Dedup → filter type/pattern (`system`/`notice`/`error` LUÔN hiển thị) → `addMessage` → `onMessage`. `isFinal: true` → unlock input + replace streaming bubble |
+| `message:sent` | Fallback confirm cho server không ack (confirm chính qua ack của `message:send`) |
+| `agent:typing` | Set `isAgentTyping = true`, auto-clear sau 10s; bỏ qua khi đang streaming |
 
 **Events gửi lên server:**
 | Event | Khi nào |
 |---|---|
-| `conversation:join` | Sau connect, nếu có `conversationId` |
-| `conversation:history` | Sau join (lấy 50 message gần nhất) |
-| `message:send` | Khi user gửi tin |
+| `agent:connect` | Sau connect, nếu có `config.agentId` (user flow — server find-or-create conversation) |
+| `conversation:join` | Sau connect, nếu đã biết `conversationId` |
+| `conversation:history` | Sau join — 50 message, `includeInternal` khi `visibleMessageTypes` chứa thinking/tool_*; phân trang bằng cursor `before` (nút "Xem tin nhắn cũ hơn") |
+| `message:send` | Khi user gửi tin — có ack callback: confirm/fail optimistic message, `guardrailBlocked` → gỡ message khỏi list |
+| `message:typing` | User gõ trong input (debounce 2s, một event duy nhất với cờ `isTyping`) |
 
 **Không gửi `conversationId` trong `message:send` payload** — server tự resolve từ `client.data`.
+
+**Token refresh:** `StackAIChat.updateToken(token)` → gán `socket.auth` mới rồi `disconnect().connect()`.
 
 ### 4. Message Types (`MessageType`)
 | Type | Render |
 |---|---|
 | `message` | User bubble HOẶC assistant full-width với markdown |
 | `divider` | Separator "Cuộc trò chuyện mới" |
-| `notice` / `system` | `NoticeBanner` — inline banner |
+| `notice` / `system` / `error` | `NoticeBanner` — inline banner (`error` có style đỏ) |
 | `thinking` | `CollapsibleBlock` (💭) |
 | `tool_use` | `CollapsibleBlock` (🔧) |
 | `tool_result` | `CollapsibleBlock` (📋) |
@@ -144,7 +149,8 @@ Pattern singleton cho phép `StackAIChat.sendMessage()` / `StackAIChat.connect()
 
 | Field | Mặc định | Mô tả |
 |---|---|---|
-| `visibleMessageTypes` | `['message']` | Các `MessageType` được hiển thị trong chat |
+| `agentId` | — | User flow (JWT đăng nhập): emit `agent:connect` để server find-or-create conversation. Anonymous token không cần |
+| `visibleMessageTypes` | `['message']` | Các `MessageType` được hiển thị trong chat (`system`/`notice`/`error` luôn hiển thị bất kể config) |
 | `hiddenPatterns` | `[]` | Regex lọc ẩn message theo content |
 | `customStyles` | — | CSS override per-component inject vào Shadow DOM |
 | `showReferences` | `true` | Hiển thị SourcesPanel dưới assistant messages |

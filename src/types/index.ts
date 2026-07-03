@@ -78,7 +78,16 @@ export interface SDKConfig {
   token: string
   /** Optional: pass known conversationId to resume. Anonymous flow will get it from server via presence:update. */
   conversationId?: string
-  /** Socket.IO server path. Default: '/ws/chat' */
+  /**
+   * Authenticated-user flow (user JWT): agent to chat with.
+   * SDK emits `agent:connect { agentId }` — server find-or-creates the conversation and joins the room.
+   * Not needed for anonymous tokens (agentId is embedded in the token, server auto-joins).
+   */
+  agentId?: string
+  /**
+   * Socket.IO handshake path override. By default it is derived from wsUrl:
+   * last path segment + '/socket.io' (e.g. wss://host/ws/chat → '/chat/socket.io').
+   */
   socketPath?: string
 
   // Pre-chat form
@@ -183,7 +192,7 @@ export interface MessageSource {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
+export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
 
 export interface Message {
   /** Local temp id before server confirms */
@@ -199,10 +208,28 @@ export interface Message {
   timestamp?: string
 }
 
+/** Structured reference attached to an outgoing message (doc: message:send.references) */
+export interface MessageReference {
+  resourceType: string
+  resourceId: string
+  label?: string
+}
+
 export interface SendMessagePayload {
   role: 'user'
   content: string
   attachments?: AttachmentItem[]
+  references?: MessageReference[]
+  workId?: string
+}
+
+/** Streaming delta from server while the agent is composing an answer */
+export interface MessageChunkPayload {
+  actionId: string
+  agentId?: string
+  conversationId?: string
+  delta: string
+  chunkIndex: number
 }
 
 // ─── Store state ─────────────────────────────────────────────────────────────

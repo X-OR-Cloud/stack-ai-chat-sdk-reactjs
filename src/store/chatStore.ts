@@ -19,6 +19,11 @@ interface ChatState {
   messages: Message[]
   isAgentTyping: boolean
   isWaitingForAgent: boolean
+  /** In-flight streamed answer (message:chunk), replaced by the final message:new */
+  streaming: { actionId: string; content: string } | null
+  /** Older messages available on server (conversation:history hasMore) */
+  historyHasMore: boolean
+  isLoadingHistory: boolean
 
   // Reference quote injected by host webapp
   reference: string | null
@@ -39,8 +44,12 @@ interface ChatState {
   prependMessages: (messages: Message[]) => void
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
+  removeMessage: (localId: string) => void
   setAgentTyping: (typing: boolean) => void
   setWaitingForAgent: (waiting: boolean) => void
+  setStreaming: (streaming: { actionId: string; content: string } | null) => void
+  setHistoryHasMore: (hasMore: boolean) => void
+  setLoadingHistory: (loading: boolean) => void
   reset: () => void
   resetSession: () => void
 }
@@ -54,6 +63,9 @@ export const useChatStore = create<ChatState>()((set) => ({
   messages: [],
   isAgentTyping: false,
   isWaitingForAgent: false,
+  streaming: null,
+  historyHasMore: false,
+  isLoadingHistory: false,
   reference: null,
   userFields: {},
 
@@ -104,9 +116,20 @@ export const useChatStore = create<ChatState>()((set) => ({
       ),
     })),
 
+  removeMessage: (localId) =>
+    set((state) => ({
+      messages: state.messages.filter((m) => m.localId !== localId),
+    })),
+
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
   setWaitingForAgent: (waiting) => set({ isWaitingForAgent: waiting }),
+
+  setStreaming: (streaming) => set({ streaming }),
+
+  setHistoryHasMore: (hasMore) => set({ historyHasMore: hasMore }),
+
+  setLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
 
   resetSession: () =>
     set({
@@ -114,6 +137,9 @@ export const useChatStore = create<ChatState>()((set) => ({
       messages: [],
       isAgentTyping: false,
       isWaitingForAgent: false,
+      streaming: null,
+      historyHasMore: false,
+      isLoadingHistory: false,
       reference: null,
     }),
 
@@ -126,6 +152,9 @@ export const useChatStore = create<ChatState>()((set) => ({
       messages: [],
       isAgentTyping: false,
       isWaitingForAgent: false,
+      streaming: null,
+      historyHasMore: false,
+      isLoadingHistory: false,
       reference: null,
       userFields: {},
     }),
