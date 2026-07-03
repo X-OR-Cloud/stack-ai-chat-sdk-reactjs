@@ -2,10 +2,12 @@ import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react'
 import type { AttachmentsConfig, AttachmentItem } from '../../types'
 import { filesToBase64, formatFileSize } from '../../utils/fileToBase64'
 import { useChatStore } from '../../store/chatStore'
+import { bridgeTyping } from '../../sendMessageBridge'
 
 const REFERENCE_MAX_LEN = 80
 const DEFAULT_MAX_INPUT = 1000
 const HARD_MAX_INPUT = 2000
+const TYPING_STOP_DELAY = 2000
 
 interface MessageInputProps {
   onSend: (content: string, attachments: AttachmentItem[]) => void
@@ -28,6 +30,8 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isSubmittingRef = useRef(false)
+  const isTypingRef = useRef(false)
+  const typingStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reference = useChatStore((s) => s.reference)
   const setReference = useChatStore((s) => s.setReference)
@@ -49,6 +53,33 @@ export function MessageInput({
     }
   }, [disabled])
 
+  useEffect(() => () => {
+    if (typingStopTimer.current) clearTimeout(typingStopTimer.current)
+    if (isTypingRef.current) bridgeTyping(false)
+  }, [])
+
+  // Doc CWS: một event message:typing duy nhất với cờ isTyping — emit true khi bắt đầu gõ,
+  // debounce false sau 2s không gõ
+  function notifyTyping() {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true
+      bridgeTyping(true)
+    }
+    if (typingStopTimer.current) clearTimeout(typingStopTimer.current)
+    typingStopTimer.current = setTimeout(() => {
+      isTypingRef.current = false
+      bridgeTyping(false)
+    }, TYPING_STOP_DELAY)
+  }
+
+  function stopTyping() {
+    if (typingStopTimer.current) clearTimeout(typingStopTimer.current)
+    if (isTypingRef.current) {
+      isTypingRef.current = false
+      bridgeTyping(false)
+    }
+  }
+
   function autoResize() {
     const el = textareaRef.current
     if (!el) return
@@ -60,6 +91,7 @@ export function MessageInput({
     if (e.target.value.length <= maxLen) {
       setText(e.target.value)
       autoResize()
+      notifyTyping()
     }
   }
 
@@ -76,6 +108,7 @@ export function MessageInput({
     if (disabled || isUploading || isSubmittingRef.current) return
 
     isSubmittingRef.current = true
+    stopTyping()
 
     // Prepend reference as quote if present
     const content = reference

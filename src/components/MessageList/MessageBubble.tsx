@@ -59,8 +59,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     )
   }
 
-  // notice / system → inline banner, no timestamp
-  if (message.type === 'notice' || message.type === 'system') {
+  // notice / system / error → inline banner, no timestamp
+  if (message.type === 'notice' || message.type === 'system' || message.type === 'error') {
     return (
       <div className="message-row assistant">
         <NoticeBanner message={message} />
