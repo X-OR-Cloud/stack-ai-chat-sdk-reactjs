@@ -2,13 +2,17 @@ import { createRoot, Root } from 'react-dom/client'
 import { createElement } from 'react'
 import { ChatWidget } from './ChatWidget'
 import { useChatStore } from './store/chatStore'
-import { bridgeSendMessage, unregisterSendMessage, bridgeConnect, unregisterConnect } from './sendMessageBridge'
+import {
+  bridgeSendMessage, unregisterSendMessage,
+  bridgeConnect, unregisterConnect,
+  bridgeUpdateToken, unregisterTyping, unregisterLoadOlder, unregisterUpdateToken,
+} from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
-import type { SDKConfig } from './types'
+import type { SDKConfig, SendMessagePayload } from './types'
 import { SDK_VERSION } from './version'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null
@@ -94,8 +98,14 @@ export const StackAIChat = {
     bridgeConnect()
   },
 
-  sendMessage(content: string): void {
-    bridgeSendMessage(content)
+  sendMessage(content: string, opts?: Pick<SendMessagePayload, 'attachments' | 'references' | 'workId'>): void {
+    bridgeSendMessage(content, opts)
+  },
+
+  /** Refresh JWT (e.g. sau khi IAM cấp accessToken mới) — reconnect với token mới */
+  updateToken(token: string): void {
+    if (currentConfig) currentConfig = { ...currentConfig, token }
+    bridgeUpdateToken(token)
   },
 
   getMessages() {
@@ -117,6 +127,9 @@ export const StackAIChat = {
     currentConfig = null
     unregisterSendMessage()
     unregisterConnect()
+    unregisterTyping()
+    unregisterLoadOlder()
+    unregisterUpdateToken()
     useChatStore.getState().reset()
   },
 }

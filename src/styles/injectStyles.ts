@@ -281,6 +281,19 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .notice-banner { width: 100%; display: flex; align-items: flex-start; gap: 7px; padding: 8px 12px; background-color: var(--sai-notice-bg); border: 1px solid var(--sai-notice-border); border-radius: var(--sai-radius-sm); }
 .notice-banner__icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
 .notice-banner__content { flex: 1; color: var(--sai-notice-text); font-size: 12px; line-height: 1.5; }
+.notice-banner--error { background-color: color-mix(in srgb, var(--sai-error) 10%, transparent); border-color: color-mix(in srgb, var(--sai-error) 40%, transparent); }
+.notice-banner--error .notice-banner__content { color: var(--sai-error); }
+
+/* ── Load older history ─────────────────────────────────────────────────── */
+.load-older-btn {
+  align-self: center; padding: 5px 14px;
+  border-radius: var(--sai-radius-full);
+  background-color: var(--sai-surface); border: 1px solid var(--sai-border);
+  color: var(--sai-text-muted); font-size: 12px;
+  transition: background-color var(--sai-transition), color var(--sai-transition);
+}
+.load-older-btn:hover:not(:disabled) { background-color: var(--sai-surface-hover); color: var(--sai-text); }
+.load-older-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Sources panel ──────────────────────────────────────────────────────── */
 .sources-panel { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; width: 100%; }
