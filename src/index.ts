@@ -19,6 +19,30 @@ let hostEl: HTMLElement | null = null
 let cleanupThemeWatcher: (() => void) | null = null
 let currentConfig: SDKConfig | null = null
 
+/**
+ * Cấu hình sai (thiếu/không phải URL hợp lệ) phải hỏng NGAY và ỒN ÀO tại nơi gọi
+ * `init()`/`updateConfig()`, thay vì âm thầm để `io(undefined, ...)` thử kết nối
+ * tới origin của chính trang host rồi thất bại như một `connect_error` khó hiểu.
+ * (Xem BUG-044 — cấu hình sai không kêu lên là lớp lỗi đã gây sự cố Production 7 tháng.)
+ */
+function assertValidWsUrl(wsUrl: unknown, caller: 'init' | 'updateConfig'): void {
+  if (typeof wsUrl !== 'string' || wsUrl.trim() === '') {
+    throw new Error(
+      `[SDKChat] ${caller}() thiếu "wsUrl" (bắt buộc). Ví dụ: ` +
+      `StackAIChat.${caller}({ wsUrl: 'wss://your-gateway.example.com/ws/chat', token: '...' })`
+    )
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new URL(wsUrl)
+  } catch {
+    throw new Error(
+      `[SDKChat] ${caller}() nhận "wsUrl" không phải URL hợp lệ: "${wsUrl}". ` +
+      `Cần một URL đầy đủ có scheme, ví dụ: 'wss://your-gateway.example.com/ws/chat'.`
+    )
+  }
+}
+
 export const StackAIChat = {
   version: SDK_VERSION,
 
@@ -27,6 +51,8 @@ export const StackAIChat = {
       console.warn('[SDKChat] Already initialized. Call destroy() first or use updateConfig().')
       return
     }
+
+    assertValidWsUrl(config.wsUrl, 'init')
 
     console.info(`[SDKChat] SDK v${SDK_VERSION}`)
 
@@ -80,6 +106,9 @@ export const StackAIChat = {
     if (!root || !currentConfig) {
       console.warn('[SDKChat] Not initialized.')
       return
+    }
+    if ('wsUrl' in partial) {
+      assertValidWsUrl(partial.wsUrl, 'updateConfig')
     }
     currentConfig = { ...currentConfig, ...partial }
 
