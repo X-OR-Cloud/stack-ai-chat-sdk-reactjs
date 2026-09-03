@@ -357,6 +357,10 @@ export function useSocket() {
     socket.on('connect', () => {
       isConnectingRef.current = false
       connectFailuresRef.current = 0
+      // Clear orphan streaming từ connection cũ — reconnect có thể để lại
+      // streaming actionId không bao giờ được finalize (ops-portal: useChatSocket.ts:838)
+      setStreaming(null)
+      chunksRef.current.clear()
       config.onConnected?.()
 
       // Room membership mất khi reconnect → phải join lại mỗi lần connect (doc CWS).
@@ -436,6 +440,34 @@ export function useSocket() {
       reportError(e.message, detail)
     })
 
+    // Manager-level event: Socket.IO hết lượt retry → socket.active không tự về false
+    // (ops-portal: useChatSocket.ts:410-413). Không nghe event này → kẹt "connecting" vĩnh viễn.
+    socket.io.on('reconnect_failed', () => {
+      isConnectingRef.current = false
+      setPhase('form')
+      reportError('Không thể kết nối lại sau nhiều lần thử. Vui lòng thử lại.')
+    })
+
+    // Token refresh tại reconnect_attempt (ops-portal: useChatSocket.ts:311-317)
+    // Access token có thể hết hạn trong lúc mất kết nối → mọi retry nền dùng token cũ fail mãi.
+    // Nếu khách hàng cung cấp tokenRefresh, SDK lấy token mới trước mỗi lần retry.
+    socket.io.on('reconnect_attempt', async () => {
+      if (!config?.tokenRefresh) return
+      try {
+        const newToken = await config.tokenRefresh()
+        if (newToken && newToken !== tokenRef.current) {
+          tokenRef.current = newToken
+          rememberToken(newToken)
+          socket.auth = { token: newToken }
+          // Cập nhật query token cho handshake polling tiếp theo
+          const opts = socket.io.opts as Record<string, unknown> & { query?: Record<string, unknown> }
+          if (opts.query) opts.query.token = newToken
+        }
+      } catch {
+        // tokenRefresh fail → giữ token cũ, Socket.IO tiếp tục retry với token hiện tại
+      }
+    })
+
     // ── Business events ──────────────────────────────────────────────────────
 
     socket.on('presence:update', (payload: PresenceUpdatePayload) => {
@@ -490,7 +522,8 @@ export function useSocket() {
       if (useChatStore.getState().streaming) return
       setAgentTyping(true)
       if (typingTimeout) clearTimeout(typingTimeout)
-      typingTimeout = setTimeout(() => setAgentTyping(false), 10000)
+      // 5s auto-clear — server có thể quên gửi isTyping:false (ops-portal: useChatSocket.ts:98)
+      typingTimeout = setTimeout(() => setAgentTyping(false), 5000)
     })
 
     // Streaming delta — agent gõ từng chunk trước khi có message:new final
@@ -555,8 +588,28 @@ export function useSocket() {
         const message = mapServerMessage(payload)
         addMessage(message)
         config.onMessage?.(message)
+      } else if (payload.role === 'user') {
+        // Server echo user message với _id thật (server-generated).
+        // Dedupe: tìm optimistic message pending → replace, tránh duplicate trong UI.
+        // Primary: content match. Fallback: oldest pending temp message
+        // (server có thể mutate content — VD PII redaction — ops-portal: useChatSocket.ts:175-182)
+        const messages = useChatStore.getState().messages
+        const incomingText = payload.content ?? ''
+        // Primary: exact content match
+        let target = messages.find(
+          (m) => m.localId?.startsWith('local_') && m.status === 'sending' && m.content === incomingText
+        )
+        // Fallback: oldest pending temp message (server mutated content)
+        if (!target) {
+          target = messages.find(
+            (m) => m.localId?.startsWith('local_') && m.status === 'sending'
+          )
+        }
+        if (target?.localId) {
+          confirmMessage(target.localId, id ?? '', payload.createdAt ?? payload.timestamp ?? new Date().toISOString())
+        }
+        // Không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
       }
-      // user messages từ server (echo) không cần add lại vì đã có optimistic
     })
   }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError])
 
@@ -620,7 +673,8 @@ export function useSocket() {
       if (res?.error) reportError(res.error)
     })
 
-    // Fallback: mark failed nếu 60s không nhận ack (missing confirm / server issue)
+    // Timeout: mark failed nếu 10s không nhận ack (zombie socket / server im lặng).
+    // 10s được chọn theo ops-portal (useChatSocket.ts:615) — 60s là quá dài cho UX widget.
     setTimeout(() => {
       if (!acked) {
         const current = useChatStore.getState().messages.find(
@@ -630,7 +684,7 @@ export function useSocket() {
       }
       // Safety valve: không khóa input vô hạn nếu agent không bao giờ trả lời
       useChatStore.getState().setWaitingForAgent(false)
-    }, 60_000)
+    }, 10_000)
   }, [addMessage, confirmMessage, failMessage, setWaitingForAgent, config, reportError])
 
   // Typing indicator của user — doc CWS: một event duy nhất với cờ isTyping
@@ -669,6 +723,44 @@ export function useSocket() {
       if (typingTimeout) clearTimeout(typingTimeout)
     }
   }, [disconnect, sendMessage, sendTyping, loadOlderMessages, updateToken])
+
+  // Visibility/online watchdog (ops-portal: useChatSocket.ts:461-496)
+  // OS có thể "đóng băng" WS khi tab ẩn (mobile đặc biệt) — status vẫn "connected"
+  // cho đến ping-timeout ~45s. Force reconnect khi quay lại tab sau 30s ẩn.
+  useEffect(() => {
+    let hiddenAt: number | null = null
+    const VISIBILITY_STALE_MS = 30_000
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now()
+      } else if (hiddenAt !== null) {
+        const hiddenFor = Date.now() - hiddenAt
+        hiddenAt = null
+        if (hiddenFor >= VISIBILITY_STALE_MS) {
+          const socket = socketRef.current
+          if (socket && !isIntentionalDisconnectRef.current) {
+            // Force cycle: disconnect + reconnect để handshake lại với state sạch
+            socket.disconnect().connect()
+          }
+        }
+      }
+    }
+
+    const onOnline = () => {
+      const socket = socketRef.current
+      if (socket && !socket.connected && !isIntentionalDisconnectRef.current) {
+        socket.connect()
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('online', onOnline)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
 
   return { connect, disconnect, sendMessage }
 }

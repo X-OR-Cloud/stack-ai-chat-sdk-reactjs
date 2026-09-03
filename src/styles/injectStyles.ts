@@ -305,6 +305,8 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .source-chip__icon svg { width: 12px; height: 12px; }
 .source-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-chip__score { flex-shrink: 0; opacity: 0.7; font-size: 10px; }
+.source-chip--disabled { opacity: 0.5; cursor: default; }
+.source-chip--disabled:hover { background-color: var(--sai-surface); color: var(--sai-text-muted); border-color: var(--sai-border); }
 
 /* Source detail modal */
 .source-modal-overlay { position: fixed; inset: 0; z-index: calc(var(--sai-z) + 1); background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; animation: sai-fade-in 150ms ease; }

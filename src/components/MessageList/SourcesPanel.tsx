@@ -87,12 +87,25 @@ function SourceDetailModal({ source, onClose }: SourceDetailModalProps) {
 
 interface SourcesPanelProps {
   sources: MessageSource[]
+  mode?: 'url' | 'full'
 }
 
-export function SourcesPanel({ sources }: SourcesPanelProps) {
+export function SourcesPanel({ sources, mode = 'full' }: SourcesPanelProps) {
   const [activeSource, setActiveSource] = useState<MessageSource | null>(null)
 
   if (!sources.length) return null
+
+  const handleChipClick = (src: MessageSource) => {
+    if (mode === 'url') {
+      // URL mode: open source.url in new tab if available, otherwise no-op
+      if (src.url) {
+        window.open(src.url, '_blank', 'noopener,noreferrer')
+      }
+    } else {
+      // Full mode: open detail modal
+      setActiveSource(src)
+    }
+  }
 
   return (
     <>
@@ -102,9 +115,9 @@ export function SourcesPanel({ sources }: SourcesPanelProps) {
           {sources.map((src, i) => (
             <button
               key={i}
-              className="source-chip"
-              onClick={() => setActiveSource(src)}
-              title={sourceLabel(src)}
+              className={`source-chip${mode === 'url' && !src.url ? ' source-chip--disabled' : ''}`}
+              onClick={() => handleChipClick(src)}
+              title={mode === 'url' && src.url ? `Mở ${src.url}` : sourceLabel(src)}
             >
               <span className="source-chip__icon">{sourceIcon(src.type)}</span>
               <span className="source-chip__label">{sourceLabel(src)}</span>
@@ -116,7 +129,7 @@ export function SourcesPanel({ sources }: SourcesPanelProps) {
         </div>
       </div>
 
-      {activeSource && (
+      {mode === 'full' && activeSource && (
         <SourceDetailModal source={activeSource} onClose={() => setActiveSource(null)} />
       )}
     </>

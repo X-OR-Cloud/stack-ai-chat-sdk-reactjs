@@ -48,7 +48,12 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
-  const showReferences = useChatStore((s) => s.config?.showReferences ?? true)
+  const referenceDisplay = useChatStore((s) => {
+    const cfg = s.config
+    if (cfg?.referenceDisplay) return cfg.referenceDisplay
+    // Backward-compat: map showReferences → referenceDisplay
+    return cfg?.showReferences === false ? 'none' : 'full'
+  })
 
   // divider — separates history from new session
   if (message.type === 'divider') {
@@ -118,8 +123,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}
       </div>
 
-      {showReferences && message.sources.length > 0 && (
-        <SourcesPanel sources={message.sources} />
+      {referenceDisplay !== 'none' && message.sources.length > 0 && (
+        <SourcesPanel sources={message.sources} mode={referenceDisplay === 'url' ? 'url' : 'full'} />
       )}
 
       <div className="message-meta">

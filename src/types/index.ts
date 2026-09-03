@@ -123,11 +123,30 @@ export interface SDKConfig {
   // Default: true
   showReferences?: boolean
 
+  /**
+   * Reference display mode — controls how source references are rendered:
+   * - 'none': No sources panel shown
+   * - 'url':  Show source chips only; clicking opens source.url in a new tab (if available).
+   *           No modal, no content preview. Sources without a url are shown as disabled chips.
+   * - 'full': Show source chips + modal with full content (markdown, score, url). Default behavior.
+   *
+   * Default: 'full' (or mapped from showReferences for backward compatibility).
+   * If both referenceDisplay and showReferences are set, referenceDisplay takes precedence.
+   */
+  referenceDisplay?: 'none' | 'url' | 'full'
+
   // Greeting — message shown immediately after connection, before any user input.
   greeting?: string
 
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
+
+  /**
+   * Token refresh callback — called by SDK on every Socket.IO reconnect_attempt.
+   * Return the latest token (sync or async). If not provided, SDK uses the token
+   * from init()/updateToken() (which may be stale if it expired while disconnected).
+   */
+  tokenRefresh?: () => string | Promise<string>
 
   // Callbacks
   onOpen?: () => void
