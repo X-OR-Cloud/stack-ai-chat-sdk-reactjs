@@ -35,7 +35,7 @@ export interface LogEntry {
 
 let _logSeq = 0
 
-const DEFAULT_WS_URL = 'wss://skt.x-or.cloud/chat'
+const DEFAULT_WS_URL = 'wss://xsai-ws.x-or.cloud/chat'
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
