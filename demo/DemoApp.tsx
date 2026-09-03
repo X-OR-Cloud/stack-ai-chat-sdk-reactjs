@@ -81,7 +81,7 @@ export function DemoApp() {
   // ── Options ─────────────────────────────────────────────────────────────────
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
-  const [showReferences, setShowReferences] = useState(true)
+  const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
   const [maxInputLength, setMaxInputLength] = useState(1000)
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
@@ -236,7 +236,8 @@ export function DemoApp() {
         /^No relevant knowledge found/,
       ],
     } : {}),
-    showReferences,
+    showReferences: referenceDisplay !== 'none',
+    referenceDisplay,
     maxInputLength,
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
@@ -307,6 +308,7 @@ export function DemoApp() {
       primaryColor: sdkConfig.theme?.primaryColor,
       visibleMessageTypes: sdkConfig.visibleMessageTypes ?? ['message'],
       showReferences: sdkConfig.showReferences ?? true,
+      referenceDisplay: sdkConfig.referenceDisplay ?? 'full',
       attachmentsEnabled: sdkConfig.attachments?.enabled ?? false,
       fieldsCount: sdkConfig.fields?.length ?? 0,
       persistSession: sdkConfig.session?.persist ?? false,
@@ -441,10 +443,12 @@ export function DemoApp() {
                   <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
                   <span>Ẩn Knowledge Search / Retrieved chunks</span>
                 </label>
-                <label className="demo-toggle">
-                  <input type="checkbox" checked={showReferences} onChange={(e) => setShowReferences(e.target.checked)} />
-                  <span>Hiển thị tài liệu tham chiếu</span>
-                </label>
+                <label className="demo-label">Hiển thị tài liệu tham chiếu</label>
+                <select className="demo-input" value={referenceDisplay} onChange={(e) => setReferenceDisplay(e.target.value as 'none' | 'url' | 'full')}>
+                  <option value="full">Đầy đủ (chip + nội dung + URL)</option>
+                  <option value="url">Chỉ URL (chip, click mở tab mới)</option>
+                  <option value="none">Không hiển thị</option>
+                </select>
 
                 <label className="demo-label">Giới hạn ký tự input (max 2000)</label>
                 <div className="demo-row" style={{ alignItems: 'center', gap: '8px' }}>
