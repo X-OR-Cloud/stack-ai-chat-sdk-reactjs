@@ -23,6 +23,7 @@
     "build:demo": "vite build --config demo/vite.demo.config.ts",
     "preview": "vite preview",
     "preview:demo": "vite preview --config demo/vite.demo.config.ts --outDir demo-dist",
+    "deploy:demo": "NODE_ENV=production npm run build:demo && node scripts/deploy-demo.mjs",
     "type-check": "tsc --noEmit",
     "publish:npm": "npm publish --access public",
     "sync-version": "node -e \"const fs = require('fs'); const pkg = require('./package.json'); fs.writeFileSync('src/version.ts', 'export const SDK_VERSION = ' + JSON.stringify(pkg.version) + ';\\n');\"",

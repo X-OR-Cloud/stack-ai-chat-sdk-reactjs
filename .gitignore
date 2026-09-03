@@ -3,10 +3,11 @@ dist/
 demo-dist/
 .DS_Store
 *.local
+.env
 .scripts
 .scripts/*
-scripts
 scripts/*
+!scripts/deploy-demo.mjs
 test
 test/*
 
