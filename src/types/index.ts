@@ -90,6 +90,7 @@ export interface SDKConfig {
    */
   socketPath?: string
 
+
   // Pre-chat form
   fields?: FieldConfig[]
 
@@ -135,6 +136,12 @@ export interface SDKConfig {
    */
   referenceDisplay?: 'none' | 'url' | 'full'
 
+  /**
+   * Vote (like/dislike) on agent answers via the WS `reaction:toggle` event.
+   * Default: { enabled: false } — opt-in, so existing apps do not sprout new UI on upgrade.
+   */
+  voting?: VotingConfig
+
   // Greeting — message shown immediately after connection, before any user input.
   greeting?: string
 
@@ -159,6 +166,8 @@ export interface SDKConfig {
   /** Debug: raw WebSocket payload before filtering. Useful for inspecting server data. */
   onRawMessage?: (payload: Record<string, unknown>) => void
   onFormSubmit?: (data: Record<string, string>) => void
+  /** Called once the server confirms the vote */
+  onVote?: (event: VoteEvent) => void
   onPresenceUpdate?: (payload: PresenceUpdatePayload) => void
 }
 
@@ -207,6 +216,71 @@ export interface MessageSource {
   label?: string        // optional display name
 }
 
+// ─── Vote / Reaction (WS: reaction:toggle — AIWM v1.56.0+) ──────────────────
+//
+// A widget authenticated with an anonymous token CANNOT call the REST endpoint
+// /aiwm/actions/:id/react — JwtAuthGuard rejects it with "Invalid token payload".
+// For anonymous clients WebSocket is the only channel; see the AIWM reaction
+// integration guide, §1 and §9.
+
+export type VoteType = 'like' | 'dislike'
+
+/** Toggle outcome decided by the server — never derived on the client */
+export type VoteAction = 'created' | 'updated' | 'removed'
+
+export interface VotingConfig {
+  /** Show vote buttons under agent answers. Default: false (opt-in) */
+  enabled?: boolean
+}
+
+/** Payload emitted to the server as `reaction:toggle` */
+export interface ReactionTogglePayload {
+  conversationId: string
+  actionId: string
+  type: VoteType
+}
+
+/** ACK returned for `reaction:toggle` */
+export interface ReactionToggleAck {
+  success: boolean
+  error?: string
+  actionId?: string
+  conversationId?: string
+  resultAction?: VoteAction
+  /** Counts AFTER the operation — always use these absolute values, never +1/-1 */
+  likes?: number
+  dislikes?: number
+  /** Final state for the SENDER only. null when the vote was just removed */
+  userReaction?: VoteType | null
+}
+
+/**
+ * Broadcast to every client in the room whenever someone reacts.
+ * ⚠️ There is no `userReaction` here: `type` belongs to WHOEVER JUST CLICKED, not to the
+ * client receiving the event (docs §6 and §12). Only read likes/dislikes from this payload.
+ */
+export interface ReactionUpdatedPayload {
+  conversationId: string
+  actionId: string
+  likes: number
+  dislikes: number
+  type: VoteType | null
+  actor?: { userId?: string; agentId?: string }
+  resultAction: VoteAction
+  nonce?: string
+  timestamp?: string
+}
+
+/** Payload handed to the host app's onVote callback */
+export interface VoteEvent {
+  actionId: string
+  /** State AFTER the operation — null means the vote was just removed */
+  vote: VoteType | null
+  action: VoteAction
+  likes?: number
+  dislikes?: number
+}
+
 // ─── Messages ────────────────────────────────────────────────────────────────
 
 export type MessageRole = 'user' | 'assistant'
@@ -225,6 +299,13 @@ export interface Message {
   attachments: AttachmentItem[]
   sources: MessageSource[]
   timestamp?: string
+  /** The CURRENT user's own vote on this message (null = not voted) */
+  userReaction?: VoteType | null
+  /** Total votes from everyone — server-provided; the SDK never increments them itself */
+  likes?: number
+  dislikes?: number
+  /** Waiting for the server to confirm — locks the buttons against double submits */
+  votePending?: boolean
 }
 
 /** Structured reference attached to an outgoing message (doc: message:send.references) */

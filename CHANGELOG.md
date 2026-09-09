@@ -12,6 +12,23 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 
 Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (task đo/sửa nội bộ, chờ duyệt trước khi release — xem `work:6a7dd1f1f923a3035c710240`).
 
+### Added
+- **Vote 👍/👎 cho câu trả lời của agent** (`config.voting.enabled`, mặc định `false` — opt-in, app đang chạy nâng version không tự mọc UI mới). Bấm lại đúng nút đang sáng = gỡ vote; server tự toggle nên FE chỉ cần một event duy nhất cho mọi thao tác.
+  - Gửi qua **WebSocket `reaction:toggle`** (AIWM v1.56.0+), payload `{ conversationId, actionId, type }`, với `actionId` = `_id` của message.
+  - **Vì sao WS chứ không phải REST:** widget dùng anonymous token không giữ JWT hợp lệ cho REST — `POST /aiwm/actions/:id/react` trả `401 Invalid token payload`. Theo hướng dẫn tích hợp của AIWM (§1, §9), với anonymous client thì WebSocket là kênh duy nhất. REST chỉ dành cho web portal đã đăng nhập.
+  - ACK là **nguồn sự thật cuối cùng**: lấy `userReaction` + `likes`/`dislikes` tuyệt đối từ ACK, không tự `+1`/`-1`. Thất bại thì **rollback** về trạng thái trước đó (§12).
+  - Đọc trạng thái ban đầu từ `msg.reactions = { likes, dislikes, userReaction }` có sẵn trong `conversation:history` → vote sống sót qua reload, không cần gọi thêm API nào.
+  - Tôn trọng **rate limit** của server (10 toggle/10s): khoá nút cho tới khi có ACK, cộng thêm chặn 300ms giữa hai lần bấm theo khuyến nghị §7.
+  - Chỉ hiện nút với assistant message thường đã có `_id` dạng ObjectId — greeting (chỉ có `localId`), bubble streaming, và `system`/`notice`/`error`/`thinking`/`tool_use`/`tool_result` đều không có nút (§12).
+  - Gặp lỗi thường trực với phiên hiện tại (`not available for agent clients`, `Unauthenticated socket`, `Invalid token payload`) thì ẩn nút cho cả phiên, thay vì để người dùng bấm mãi. Rate limit **không** thuộc nhóm này vì chỉ tạm thời.
+  - Nếu ACK không bao giờ về (socket zombie): sau 10s tự rollback và nhả khoá nút.
+  - Thêm `config.voting`, callback `config.onVote`, và API `StackAIChat.vote(actionId, type)`.
+- **Nút sao chép câu trả lời của agent** — luôn hiện, không có cờ bật/tắt. Copy **markdown gốc** mà agent viết. Dùng Clipboard API, tự fallback sang `execCommand('copy')` cho trang nhúng qua http thường (Clipboard API chỉ chạy trên secure context). Không hiện với bubble đang stream.
+  - Không hiển thị số đếm `likes`/`dislikes` trên UI: widget là 1-1 giữa khách và agent nên con số luôn là 0 hoặc 1. Số vẫn được lưu vào store để host app đọc qua `getMessages()`. Vì vậy SDK cũng **chưa** nghe broadcast `reaction:updated`.
+
+### Changed
+- Tách `redactValue()` / `truncateForDisplay()` từ `useSocket.ts` ra `src/utils/redact.ts` để lớp vote dùng chung. Hành vi không đổi; mục đích là giữ **một nguồn duy nhất** cho logic che token thay vì chép lại ở hai chỗ.
+
 ### Fixed
 - **`StackAIChat.init()` và `updateConfig()` giờ `throw` ngay lập tức nếu thiếu hoặc `wsUrl` không phải URL hợp lệ**, kèm thông báo lỗi nói rõ vấn đề. Trước đây: thiếu `wsUrl` khiến `resolveSocketParams()` âm thầm rơi vào nhánh fallback, `io(undefined, ...)` **âm thầm thử kết nối tới origin của chính trang đang nhúng SDK** — người tích hợp chỉ thấy một `connect_error` khó hiểu, không biết nguyên nhân là thiếu cấu hình. (Cùng lớp lỗi với BUG-044 — cấu hình sai không kêu lên.)
 - **`connect()` nội bộ (`useSocket.ts`) có thêm lớp kiểm tra `wsUrl` phòng vệ thứ 2** ngay trước khi gọi `io(...)`, phòng trường hợp giá trị `wsUrl` invalid lọt qua (ví dụ code JS thuần không qua kiểm tra kiểu của TypeScript).

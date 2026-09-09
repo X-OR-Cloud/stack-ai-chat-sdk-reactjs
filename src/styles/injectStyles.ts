@@ -256,6 +256,35 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .message-status-icon { font-size: 11px; color: var(--sai-text-muted); }
 .message-status-icon.failed { color: var(--sai-error); }
 
+/* ── Message action buttons (vote like/dislike, copy) ───────────────────── */
+.message-actions { display: flex; align-items: center; gap: 2px; margin-left: 2px; }
+.msg-action-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border: none; border-radius: var(--sai-radius-xs);
+  background: transparent; color: var(--sai-text-muted);
+  cursor: pointer; opacity: 0.55;
+  transition: opacity var(--sai-transition), background-color var(--sai-transition), color var(--sai-transition);
+}
+.msg-action-btn svg { width: 14px; height: 14px; }
+.msg-action-btn:hover:not(:disabled) { opacity: 1; background-color: var(--sai-surface-hover); }
+.msg-action-btn:disabled { cursor: default; opacity: 0.35; }
+.msg-action-btn:focus-visible { outline: 2px solid var(--sai-border-focus); outline-offset: 1px; opacity: 1; }
+.vote-btn.is-active { opacity: 1; color: var(--sai-primary); }
+.vote-btn.is-active svg { fill: color-mix(in srgb, var(--sai-primary) 18%, transparent); }
+.vote-btn.is-active.is-dislike { color: var(--sai-error); }
+.vote-btn.is-active.is-dislike svg { fill: color-mix(in srgb, var(--sai-error) 18%, transparent); }
+.copy-btn.is-active { opacity: 1; color: var(--sai-online); }
+
+/* Desktop: reveal on hover so the list stays uncluttered.
+   An active state (a cast vote, the "copied" tick) stays visible. */
+@media (hover: hover) and (pointer: fine) {
+  .message-row.assistant .msg-action-btn:not(.is-active) { opacity: 0; pointer-events: none; }
+  .message-row.assistant:hover .msg-action-btn:not(.is-active),
+  .message-row.assistant:focus-within .msg-action-btn:not(.is-active) { opacity: 0.55; pointer-events: auto; }
+  .message-row.assistant:hover .msg-action-btn:not(.is-active):hover { opacity: 1; }
+}
+
 /* ── Attachments ────────────────────────────────────────────────────────── */
 .message-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .message-attachment-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: var(--sai-radius-sm); background-color: rgba(0,0,0,0.12); font-size: 12px; max-width: 180px; overflow: hidden; }

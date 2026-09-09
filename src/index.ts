@@ -6,13 +6,14 @@ import {
   bridgeSendMessage, unregisterSendMessage,
   bridgeConnect, unregisterConnect,
   bridgeUpdateToken, unregisterTyping, unregisterLoadOlder, unregisterUpdateToken,
+  bridgeVote, unregisterVote, unregisterGetToken,
 } from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
-import type { SDKConfig, SendMessagePayload } from './types'
+import type { SDKConfig, SendMessagePayload, VoteType } from './types'
 import { SDK_VERSION } from './version'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null
@@ -131,6 +132,17 @@ export const StackAIChat = {
     bridgeSendMessage(content, opts)
   },
 
+  /**
+   * Vote on an agent answer.
+   * `actionId` is the message `_id` (read it from `getMessages()[i].messageId`).
+   * The server toggles: sending the type that is already set removes the vote.
+   * Goes over the WS `reaction:toggle` event.
+   * Only runs when `config.voting.enabled` is set and the socket is connected.
+   */
+  vote(actionId: string, type: VoteType): void {
+    bridgeVote(actionId, type)
+  },
+
   /** Refresh JWT (e.g. sau khi IAM cấp accessToken mới) — reconnect với token mới */
   updateToken(token: string): void {
     if (currentConfig) currentConfig = { ...currentConfig, token }
@@ -159,6 +171,8 @@ export const StackAIChat = {
     unregisterTyping()
     unregisterLoadOlder()
     unregisterUpdateToken()
+    unregisterVote()
+    unregisterGetToken()
     useChatStore.getState().reset()
   },
 }

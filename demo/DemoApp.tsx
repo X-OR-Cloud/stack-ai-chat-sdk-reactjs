@@ -26,6 +26,7 @@ export type LogEventKind =
   | 'message:raw'
   | 'reference:set'
   | 'widget:preview-link'
+  | 'message:vote'
 
 export interface LogEntry {
   id: number
@@ -84,6 +85,7 @@ export function DemoApp() {
   const [persistSession, setPersistSession] = useState(true)
   const [attachEnabled, setAttachEnabled]   = useState(true)
   const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
+  const [votingEnabled, setVotingEnabled]   = useState(false)
   const [maxInputLength, setMaxInputLength] = useState(1000)
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
@@ -234,6 +236,7 @@ export function DemoApp() {
     ...(hideKnowledgeSearch ? { hiddenPatterns: KNOWLEDGE_SEARCH_HIDDEN_PATTERNS } : {}),
     showReferences: referenceDisplay !== 'none',
     referenceDisplay,
+    voting: { enabled: votingEnabled },
     maxInputLength,
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
@@ -283,6 +286,10 @@ export function DemoApp() {
           conversationId: p.conversationId, timestamp: p.timestamp,
         }),
       onDisconnected: () => addLog('socket:disconnected', '🔌 Socket disconnected'),
+      onVote: (e) =>
+        addLog('message:vote', `${e.vote === 'like' ? '👍' : e.vote === 'dislike' ? '👎' : '⊘'} vote ${e.action} → ${e.vote ?? 'gỡ'}  (${e.actionId.slice(-8)})`, {
+          actionId: e.actionId, vote: e.vote, action: e.action,
+        }),
       onError: (msg, detail) => {
         const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)
         addLog('socket:error', `❌ Error: ${msg}  origin=${serverOrigin}  path=${effectivePath}`, {
@@ -457,6 +464,10 @@ export function DemoApp() {
                 <label className="demo-toggle">
                   <input type="checkbox" checked={hideKnowledgeSearch} onChange={(e) => setHideKnowledgeSearch(e.target.checked)} />
                   <span>Ẩn Knowledge Search / Retrieved chunks</span>
+                </label>
+                <label className="demo-toggle">
+                  <input type="checkbox" checked={votingEnabled} onChange={(e) => setVotingEnabled(e.target.checked)} />
+                  <span>Bật vote 👍/👎 cho câu trả lời của agent</span>
                 </label>
                 <label className="demo-label">Hiển thị tài liệu tham chiếu</label>
                 <select className="demo-input" value={referenceDisplay} onChange={(e) => setReferenceDisplay(e.target.value as 'none' | 'url' | 'full')}>
