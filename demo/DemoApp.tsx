@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { StackAIChat } from '../src/index'
 import { resolveSocketParams } from '../src/hooks/useSocket'
 import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
+import { buildWidgetPreviewUrl, KNOWLEDGE_SEARCH_HIDDEN_PATTERNS, type ShareableConfig } from './shareConfig'
 import { TestRunner } from './testRunner/TestRunner'
 import { DEFAULT_SYSTEM_PROMPT } from './testRunner/defaultSystemPrompt'
 import defaultScenarioData from './testRunner/defaultScenario.json'
@@ -24,6 +25,7 @@ export type LogEventKind =
   | 'message:new'
   | 'message:raw'
   | 'reference:set'
+  | 'widget:preview-link'
 
 export interface LogEntry {
   id: number
@@ -229,18 +231,31 @@ export function DemoApp() {
     attachments: { enabled: attachEnabled, maxSize: 5, accept: ['image/*', 'application/pdf'], maxCount: 5 },
     theme: { mode: themeMode, primaryColor },
     visibleMessageTypes: [...visibleTypes] as MessageType[],
-    ...(hideKnowledgeSearch ? {
-      hiddenPatterns: [
-        /^🧠\s?\*\*Knowledge Search\*\*/,
-        /^Retrieved \d+ knowledge chunk/,
-        /^No relevant knowledge found/,
-      ],
-    } : {}),
+    ...(hideKnowledgeSearch ? { hiddenPatterns: KNOWLEDGE_SEARCH_HIDDEN_PATTERNS } : {}),
     showReferences: referenceDisplay !== 'none',
     referenceDisplay,
     maxInputLength,
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
+  }
+
+  // Bản config dùng để chia sẻ qua link (JSON-serializable): thay hiddenPatterns
+  // (RegExp[] không JSON hoá được) bằng cờ ý định `hideKnowledgeSearch`, trang
+  // widget.html tự suy ra lại RegExp giống hệt ở đây (dùng chung KNOWLEDGE_SEARCH_HIDDEN_PATTERNS).
+  const { hiddenPatterns: _omitHiddenPatterns, ...sdkConfigWithoutRegex } = sdkConfig
+  const shareConfig: ShareableConfig = {
+    ...sdkConfigWithoutRegex,
+    hideKnowledgeSearch,
+  }
+
+  function handleOpenInNewWindow() {
+    if (!wsUrl || !token) {
+      alert('Vui lòng điền đủ WS URL và Token trước khi mở cửa sổ mới')
+      return
+    }
+    const url = buildWidgetPreviewUrl(shareConfig)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    addLog('widget:preview-link', `🔗 Mở widget preview ở cửa sổ mới`, { url })
   }
 
   function handleInit() {
@@ -515,12 +530,22 @@ export function DemoApp() {
               </section>
 
               {/* Init button */}
-              <button
-                className={`demo-btn demo-btn--primary ${initialized ? 'demo-btn--destroy' : ''}`}
-                onClick={handleInit}
-              >
-                {initialized ? '🗑 Destroy Widget' : '🚀 Khởi tạo Widget'}
-              </button>
+              <div className="demo-row" style={{ gap: '8px' }}>
+                <button
+                  className={`demo-btn demo-btn--primary ${initialized ? 'demo-btn--destroy' : ''}`}
+                  onClick={handleInit}
+                  style={{ flex: 1 }}
+                >
+                  {initialized ? '🗑 Destroy Widget' : '🚀 Khởi tạo Widget'}
+                </button>
+                <button
+                  className="demo-btn demo-btn--ghost"
+                  onClick={handleOpenInNewWindow}
+                  title="Mở trang riêng đã khởi tạo sẵn widget với cấu hình hiện tại, sẵn sàng để chat"
+                >
+                  🔗 Mở ở cửa sổ mới
+                </button>
+              </div>
               {initialized && (
                 <div className="demo-quick-actions">
                   <button className="demo-btn demo-btn--ghost" onClick={() => { StackAIChat.open(); addLog('widget:open', '📂 open() called manually') }}>Open</button>
