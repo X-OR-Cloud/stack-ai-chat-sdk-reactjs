@@ -2,7 +2,7 @@
 
 Floating chat widget SDK for React apps — powered by [Stack AI](https://x-or.cloud).
 
-Embed a fully-featured live chat widget into any React application in minutes. Connects to your Stack AI backend via Socket.IO with support for real-time messaging, agent presence, typing indicators, file attachments, markdown rendering, reference/quote injection, greeting messages, session dividers, expanded mode, dark/light mode, and Shadow DOM style isolation.
+Embed a fully-featured live chat widget into any React application in minutes. Connects to your Stack AI backend via Socket.IO with support for real-time messaging, agent presence, typing indicators, file attachments, markdown rendering, answer voting, copy-to-clipboard, reference/quote injection, greeting messages, session dividers, expanded mode, dark/light mode, and Shadow DOM style isolation.
 
 ---
 
@@ -160,6 +160,28 @@ document.addEventListener('mouseup', () => {
 ### `StackAIChat.clearReference()`
 Clear any pending reference/quote from the input.
 
+### `StackAIChat.vote(actionId, type)`
+Vote on an agent answer from outside the widget. `actionId` is the message `_id` — read it
+from `getMessages()[i].messageId`. `type` is `'like'` or `'dislike'`.
+
+The server toggles: sending the type that is already set removes the vote. Requires
+`voting.enabled` and a live socket connection.
+
+```ts
+const last = StackAIChat.getMessages().filter(m => m.role === 'assistant').pop()
+if (last?.messageId) StackAIChat.vote(last.messageId, 'like')
+```
+
+### `StackAIChat.updateToken(token)`
+Swap the JWT and reconnect — call it after your IAM issues a fresh access token.
+
+### `StackAIChat.getMessages()`
+Return the current message list, including each message's `userReaction`, `likes` and
+`dislikes`.
+
+### `StackAIChat.getPhase()`
+Return the current phase: `'idle' | 'form' | 'connecting' | 'chat'`.
+
 ### `StackAIChat.updateConfig(partial)`
 Update configuration after initialization (e.g. change theme or title).
 
@@ -175,7 +197,8 @@ Unmount the widget and clean up all resources.
 | `wsUrl` | `string` | ✓ | WebSocket server URL |
 | `token` | `string` | ✓ | JWT token (agent, user, or anonymous) |
 | `conversationId` | `string` | — | Resume a specific conversation. Omit for anonymous flow. |
-| `socketPath` | `string` | — | Socket.IO path. Default: `'/ws/chat'` |
+| `agentId` | `string` | — | Authenticated-user flow: emits `agent:connect` so the server find-or-creates the conversation. Anonymous tokens do not need it. |
+| `socketPath` | `string` | — | Socket.IO handshake path. Derived from `wsUrl` when omitted. |
 | `fields` | `FieldConfig[]` | — | Pre-chat form fields |
 | `session` | `SessionConfig` | — | Form session persistence |
 | `attachments` | `AttachmentsConfig` | — | File attachment settings |
@@ -187,6 +210,10 @@ Unmount the widget and clean up all resources.
 | `hiddenPatterns` | `RegExp[]` | — | Regex patterns to filter out messages by content |
 | `greeting` | `string` | — | Welcome message shown when a fresh conversation starts (no history). Omit to disable. |
 | `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
+| `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
+| `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
+| `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
+| `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
 | `onClose` | `() => void` | — | Called when widget closes |
@@ -198,6 +225,7 @@ Unmount the widget and clean up all resources.
 | `onMessage` | `(message: Message) => void` | — | Called on new incoming messages |
 | `onRawMessage` | `(payload: Record<string, unknown>) => void` | — | Debug: raw WebSocket payload before filtering |
 | `onFormSubmit` | `(data: Record<string, string>) => void` | — | Called when pre-chat form is submitted |
+| `onVote` | `(event: VoteEvent) => void` | — | Called once the server confirms a vote |
 
 ---
 
@@ -315,10 +343,55 @@ The server determines the flow based on your JWT `type` claim:
 - **Dark / Light / Auto** — theme system via CSS custom properties
 - **Anonymous flow** — zero-config conversation creation for anonymous visitors
 - **Visible message types** — opt-in to `thinking`, `tool_use`, `tool_result`, `notice`, `system` action types
+- **Answer voting** — 👍/👎 under each agent answer over WS `reaction:toggle`; clicking the active button removes the vote; state is restored from history on reload; opt-in via `voting.enabled`
+- **Copy answer** — one-click copy of the raw markdown an agent wrote; always available
 - **Reference documents** — agent responses with attached sources/citations rendered as interactive chips with detail modal; toggle via `showReferences`
 - **Custom styles** — per-component CSS overrides injected into Shadow DOM
 - **Version exposure** — `StackAIChat.version` readable by consumer apps; logged to console on init
 - **TypeScript** — full type definitions included
+
+---
+
+## Voting & Copy
+
+Every agent answer carries a copy button. Voting is opt-in:
+
+```ts
+StackAIChat.init({
+  wsUrl: 'wss://xsai-ws.x-or.cloud/chat',
+  token: '<jwt>',
+  voting: { enabled: true },
+  onVote: (e) => console.log(e.actionId, e.vote, e.action),
+})
+```
+
+**How voting works**
+
+Votes travel over the WebSocket event `reaction:toggle`, not the REST endpoint. A widget
+running on an anonymous token holds no valid JWT for REST, so `POST /aiwm/actions/:id/react`
+answers `401 Invalid token payload`; WebSocket is the only channel open to those clients.
+
+- Clicking the button that is already active removes the vote — the server decides, the SDK
+  never derives the result locally.
+- The initial state arrives inside `conversation:history`, so a vote survives a page reload
+  with no extra request.
+- Buttons lock until the server acknowledges, and a failed acknowledgement rolls the button
+  back to its previous state.
+- The server allows 10 toggles per 10 seconds per socket. Exceeding it rolls back and reports
+  through `onError`; the buttons stay usable.
+- Buttons appear only on plain agent answers. The greeting, the message still streaming, and
+  `system` / `notice` / `error` / `thinking` / `tool_use` / `tool_result` never get them.
+- If the server rejects voting for the session — an agent client, an unauthenticated socket,
+  or a token with no identity — the buttons hide until `updateToken()` supplies a new token.
+
+Counts are not rendered: in a one-to-one widget only the recipient votes, so `likes` and
+`dislikes` are only ever 0 or 1. They are still stored, readable via `getMessages()`.
+
+**Copying**
+
+The copy button yields the raw markdown the agent wrote, which pastes cleanly into any editor
+that understands markdown. It uses the Clipboard API and falls back to `execCommand('copy')`
+when the embedding page is served over plain http, where the Clipboard API is unavailable.
 
 ---
 
