@@ -167,11 +167,12 @@ Pattern singleton cho phép `StackAIChat.sendMessage()` / `StackAIChat.connect()
 main          ← production, protected — chỉ merge từ staging
   └── staging ← buffer/integration trước khi release
         ├── dunghv/<feature-or-fix>   ← Tony Hoang
-        └── hantv/<feature-or-fix>    ← Hà Nguyễn
+        ├── hantv/<feature-or-fix>    ← Hà Nguyễn
+        └── huydq/<feature-or-fix>    ← qhuy2412
 ```
 
 ### Quy trình
-- **Phát triển**: tạo nhánh cá nhân từ `staging` với prefix `dunghv/` hoặc `hantv/`
+- **Phát triển**: tạo nhánh cá nhân từ `staging` với prefix `dunghv/`, `hantv/` hoặc `huydq/`
 - **Tích hợp**: PR từ nhánh cá nhân → `staging` (cần review trước khi merge)
 - **Release**: merge `staging` → `main` khi sẵn sàng, kèm backup tag
 
@@ -185,7 +186,7 @@ Dùng tag thay vì nhánh backup để tránh rác repo. List toàn bộ: `git t
 
 ### Quy tắc bắt buộc
 - `main` — **không push trực tiếp**, chỉ merge qua PR từ `staging`
-- Nhánh cá nhân phải có prefix `dunghv/` hoặc `hantv/` để tránh đụng tên
+- Nhánh cá nhân phải có prefix `dunghv/`, `hantv/` hoặc `huydq/` để tránh đụng tên
 - Xóa nhánh cá nhân sau khi đã merge vào `staging`
 
 ---
