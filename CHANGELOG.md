@@ -8,7 +8,7 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 >
 > Lịch sử trước ngày hôm nay **không được ghi lại hồi tố** ở đây — không phải mọi bản cũ đều có git tag tương ứng (`0.3.0, 0.4.0, 0.8.0, 0.9.0, 0.10.x, 0.11.0, 0.12.0` không có tag), nên viết lại chi tiết từng bản sẽ phải suy đoán một phần. Ai cần lịch sử đầy đủ, tra `git log --oneline` trực tiếp trong repo — đó là nguồn chính xác, tài liệu này không lặp lại để tránh lệch.
 
-## [Unreleased]
+## [0.14.0] - 2026-09-09
 
 Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (task đo/sửa nội bộ, chờ duyệt trước khi release — xem `work:6a7dd1f1f923a3035c710240`).
 
