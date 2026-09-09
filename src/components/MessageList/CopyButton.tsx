@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useChatStore } from '../../store/chatStore'
 import type { Message } from '../../types'
 
 const COPIED_FEEDBACK_MS = 1500
@@ -42,7 +41,6 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ message }: CopyButtonProps) {
-  const enabled = useChatStore((s) => !!s.config?.showCopyButton)
   const [copied, setCopied] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -51,7 +49,7 @@ export function CopyButton({ message }: CopyButtonProps) {
   }, [])
 
   // A streaming bubble is still being written — copying half an answer is not useful.
-  if (!enabled || !message.content || message.localId?.startsWith('stream_')) return null
+  if (!message.content || message.localId?.startsWith('stream_')) return null
 
   async function handleClick() {
     // Raw markdown: it is exactly what the agent wrote, and pastes cleanly into editors

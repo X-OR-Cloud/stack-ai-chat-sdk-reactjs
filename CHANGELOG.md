@@ -23,7 +23,7 @@ Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (
   - Gặp lỗi thường trực với phiên hiện tại (`not available for agent clients`, `Unauthenticated socket`, `Invalid token payload`) thì ẩn nút cho cả phiên, thay vì để người dùng bấm mãi. Rate limit **không** thuộc nhóm này vì chỉ tạm thời.
   - Nếu ACK không bao giờ về (socket zombie): sau 10s tự rollback và nhả khoá nút.
   - Thêm `config.voting`, callback `config.onVote`, và API `StackAIChat.vote(actionId, type)`.
-- **Nút sao chép câu trả lời của agent** (`config.showCopyButton`, mặc định `false` — cùng chính sách opt-in với vote). Copy **markdown gốc** mà agent viết. Dùng Clipboard API, tự fallback sang `execCommand('copy')` cho trang nhúng qua http thường (Clipboard API chỉ chạy trên secure context). Không hiện với bubble đang stream.
+- **Nút sao chép câu trả lời của agent** — luôn hiện, không có cờ bật/tắt. Copy **markdown gốc** mà agent viết. Dùng Clipboard API, tự fallback sang `execCommand('copy')` cho trang nhúng qua http thường (Clipboard API chỉ chạy trên secure context). Không hiện với bubble đang stream.
   - Không hiển thị số đếm `likes`/`dislikes` trên UI: widget là 1-1 giữa khách và agent nên con số luôn là 0 hoặc 1. Số vẫn được lưu vào store để host app đọc qua `getMessages()`. Vì vậy SDK cũng **chưa** nghe broadcast `reaction:updated`.
 
 ### Changed

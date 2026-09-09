@@ -84,7 +84,6 @@ export function DemoApp() {
   const [attachEnabled, setAttachEnabled]   = useState(true)
   const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
   const [votingEnabled, setVotingEnabled]   = useState(false)
-  const [showCopyButton, setShowCopyButton] = useState(false)
   const [maxInputLength, setMaxInputLength] = useState(1000)
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
@@ -242,7 +241,6 @@ export function DemoApp() {
     showReferences: referenceDisplay !== 'none',
     referenceDisplay,
     voting: { enabled: votingEnabled },
-    showCopyButton,
     maxInputLength,
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
@@ -455,10 +453,6 @@ export function DemoApp() {
                 <label className="demo-toggle">
                   <input type="checkbox" checked={votingEnabled} onChange={(e) => setVotingEnabled(e.target.checked)} />
                   <span>Bật vote 👍/👎 cho câu trả lời của agent</span>
-                </label>
-                <label className="demo-toggle">
-                  <input type="checkbox" checked={showCopyButton} onChange={(e) => setShowCopyButton(e.target.checked)} />
-                  <span>Hiện nút sao chép câu trả lời</span>
                 </label>
                 <label className="demo-label">Hiển thị tài liệu tham chiếu</label>
                 <select className="demo-input" value={referenceDisplay} onChange={(e) => setReferenceDisplay(e.target.value as 'none' | 'url' | 'full')}>

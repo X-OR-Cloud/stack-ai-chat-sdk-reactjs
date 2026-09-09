@@ -125,12 +125,6 @@ export interface SDKConfig {
   showReferences?: boolean
 
   /**
-   * Show a "copy answer" button under each agent message. Copies the raw markdown.
-   * Default: false (opt-in, same policy as `voting` - no new UI on upgrade).
-   */
-  showCopyButton?: boolean
-
-  /**
    * Reference display mode — controls how source references are rendered:
    * - 'none': No sources panel shown
    * - 'url':  Show source chips only; clicking opens source.url in a new tab (if available).
