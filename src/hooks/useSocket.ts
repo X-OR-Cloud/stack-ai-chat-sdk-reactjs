@@ -6,10 +6,16 @@ import {
   registerTyping, unregisterTyping,
   registerLoadOlder, unregisterLoadOlder,
   registerUpdateToken, unregisterUpdateToken,
+  registerGetToken, unregisterGetToken,
+  registerToggleReaction, unregisterToggleReaction,
 } from '../sendMessageBridge'
+import { redactValue, truncateForDisplay } from '../utils/redact'
 import type {
   Message,
   MessageSource,
+  VoteType,
+  ReactionTogglePayload,
+  ReactionToggleAck,
   MessageChunkPayload,
   PresenceUpdatePayload,
   MessageSentPayload,
@@ -55,6 +61,12 @@ interface ServerMessage {
   isFinal?: boolean
   attachments?: Message['attachments']
   sources?: MessageSource[]
+  /** Reactions embedded in conversation:history. The docs describe this in two places
+   *  with two different shapes — read both, see extractReaction(). */
+  reactions?: unknown
+  likes?: unknown
+  dislikes?: unknown
+  userReaction?: unknown
 }
 
 interface HistoryResponse {
@@ -86,6 +98,38 @@ function isTypeVisible(type: string | undefined, allowedTypes: string[]): boolea
   return allowedTypes.includes(type) || ALWAYS_VISIBLE_TYPES.includes(type)
 }
 
+function toVoteType(value: unknown): VoteType | null {
+  if (value === 'like' || value === 'dislike') return value
+  // Some shapes return an object { type: 'like' } instead of a bare string
+  if (value && typeof value === 'object') {
+    const t = (value as Record<string, unknown>).type
+    if (t === 'like' || t === 'dislike') return t
+  }
+  return null
+}
+
+function toCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * The reaction docs describe the vote data embedded in `conversation:history` in TWO
+ * places with two different shapes (§1.3 says "use the `reactions` field", §3 says each
+ * message carries `{ likes, dislikes, userReaction }`), with no complete JSON example.
+ * Read both shapes rather than guessing one and silently losing vote state after a reload.
+ */
+function extractReaction(payload: ServerMessage): Pick<Message, 'userReaction' | 'likes' | 'dislikes'> {
+  const nested = (payload.reactions && typeof payload.reactions === 'object')
+    ? payload.reactions as Record<string, unknown>
+    : null
+
+  return {
+    userReaction: toVoteType(payload.userReaction ?? nested?.userReaction),
+    likes: toCount(payload.likes ?? nested?.likes),
+    dislikes: toCount(payload.dislikes ?? nested?.dislikes),
+  }
+}
+
 function mapServerMessage(payload: ServerMessage): Message {
   return {
     messageId: payload._id ?? payload.messageId,
@@ -97,6 +141,7 @@ function mapServerMessage(payload: ServerMessage): Message {
     attachments: payload.attachments ?? [],
     sources: payload.sources ?? [],
     timestamp: payload.createdAt ?? payload.timestamp,
+    ...extractReaction(payload),
   }
 }
 
@@ -257,24 +302,12 @@ export function useSocket() {
   // Sửa (2): redact theo TOÀN BỘ lịch sử token (không chỉ token hiện tại) — xem
   // `tokenHistoryRef`. Việc cắt-ngắn-hiển-thị (nếu cần) phải làm SAU khi redact, không
   // được làm trước — nếu không, chuỗi bị cắt tại đúng giữa token sẽ vô hiệu hoá so khớp.
-  function redactOneToken(value: unknown, token: string): unknown {
-    if (typeof value === 'string') return value.split(token).join('[REDACTED]')
-    if (Array.isArray(value)) return value.map((v) => redactOneToken(v, token))
-    if (value && typeof value === 'object') {
-      const out: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(value)) out[k] = redactOneToken(v, token)
-      return out
-    }
-    return value
-  }
   function redactToken(value: unknown, token: string | null | undefined): unknown {
-    let out = value
     // Redact token hiện tại + toàn bộ lịch sử token đã dùng trong phiên (kể cả token cũ
     // trước lần updateToken() gần nhất) — không chỉ mỗi token hiện tại.
     const tokens = new Set(tokenHistoryRef.current)
     if (token) tokens.add(token)
-    for (const t of tokens) out = redactOneToken(out, t)
-    return out
+    return redactValue(value, tokens)
   }
 
   // Gọi onError của host app; nếu host KHÔNG cung cấp onError, lỗi từng biến mất hoàn toàn
@@ -284,17 +317,6 @@ export function useSocket() {
   // bất kỳ chuỗi nào đến từ hạ tầng mạng (message/detail) là an toàn để in nguyên văn.
   // Cắt bớt string quá dài để hiển thị gọn trong console — LUÔN chạy SAU redactToken(),
   // không bao giờ trước (xem lý do ở comment trong connect_error handler).
-  function truncateForDisplay(value: unknown, maxLen = 500): unknown {
-    if (typeof value === 'string') return value.length > maxLen ? value.slice(0, maxLen) + '…' : value
-    if (Array.isArray(value)) return value.map((v) => truncateForDisplay(v, maxLen))
-    if (value && typeof value === 'object') {
-      const out: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(value)) out[k] = truncateForDisplay(v, maxLen)
-      return out
-    }
-    return value
-  }
-
   const reportError = useCallback((message: string, detail?: Record<string, unknown>) => {
     const currentToken = tokenRef.current ?? config?.token
     const safeMessage = truncateForDisplay(redactToken(message, currentToken)) as string
@@ -695,6 +717,19 @@ export function useSocket() {
     socket.emit('message:typing', { conversationId: convId, isTyping })
   }, [])
 
+  // Voting over WS: anonymous tokens cannot use the REST endpoint, so this is the only
+  // channel available to the widget. The EMPTY dependency list is deliberate — this callback
+  // feeds the same useEffect that registers the bridge, and that effect's cleanup calls
+  // disconnect(); depending on `config` would drop the socket whenever config changes identity.
+  const sendReaction = useCallback((payload: ReactionTogglePayload, ack: (res: ReactionToggleAck | undefined) => void) => {
+    const socket = socketRef.current
+    if (!socket?.connected) {
+      ack({ success: false, error: 'Chưa kết nối tới server' })
+      return
+    }
+    socket.emit('reaction:toggle', payload, ack)
+  }, [])
+
   // Token refresh (doc CWS): gán auth mới rồi reconnect để handshake lại
   const updateToken = useCallback((token: string) => {
     // tokenRef.current (token CŨ) đã nằm trong tokenHistoryRef từ lần set trước —
@@ -702,6 +737,9 @@ export function useSocket() {
     // chưa kịp mang token mới (xem comment tại redactToken()).
     tokenRef.current = token
     rememberToken(token)
+    // A new token may carry the identity the old one lacked (anonymous -> logged-in),
+    // so a session-wide "voting unavailable" verdict no longer applies.
+    useChatStore.getState().setVotingUnavailable(false)
     const socket = socketRef.current
     if (socket) {
       ;(socket as Socket & { auth: Record<string, unknown> }).auth = { token }
@@ -714,15 +752,21 @@ export function useSocket() {
     registerTyping(sendTyping)
     registerLoadOlder(loadOlderMessages)
     registerUpdateToken(updateToken)
+    // Consumers outside the socket need the FRESHEST token: updateToken() writes straight
+    // into the ref without re-rendering, so reading store.config.token yields a stale value.
+    registerGetToken(() => tokenRef.current ?? config?.token ?? null)
+    registerToggleReaction(sendReaction)
     return () => {
       unregisterSendMessage()
       unregisterTyping()
       unregisterLoadOlder()
       unregisterUpdateToken()
+      unregisterGetToken()
+      unregisterToggleReaction()
       disconnect()
       if (typingTimeout) clearTimeout(typingTimeout)
     }
-  }, [disconnect, sendMessage, sendTyping, loadOlderMessages, updateToken])
+  }, [disconnect, sendMessage, sendTyping, loadOlderMessages, updateToken, sendReaction])
 
   // Visibility/online watchdog (ops-portal: useChatSocket.ts:461-496)
   // OS có thể "đóng băng" WS khi tab ẩn (mobile đặc biệt) — status vẫn "connected"

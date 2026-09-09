@@ -3,6 +3,8 @@ import { renderMarkdown } from '../../utils/renderMarkdown'
 import { SourcesPanel } from './SourcesPanel'
 import { CollapsibleBlock } from './CollapsibleBlock'
 import { NoticeBanner } from './NoticeBanner'
+import { VoteButtons } from './VoteButtons'
+import { CopyButton } from './CopyButton'
 import { useChatStore } from '../../store/chatStore'
 
 function formatTime(iso?: string): string {
@@ -129,6 +131,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
       <div className="message-meta">
         <span className="message-time">{formatTime(message.timestamp)}</span>
+        <div className="message-actions">
+          <CopyButton message={message} />
+          <VoteButtons message={message} />
+        </div>
       </div>
     </div>
   )

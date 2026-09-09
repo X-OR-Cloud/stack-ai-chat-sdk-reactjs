@@ -5,8 +5,9 @@ import { MessageInput } from '../MessageInput/MessageInput'
 import { PreChatForm } from '../PreChatForm/PreChatForm'
 import { AgentStatus } from '../AgentStatus/AgentStatus'
 import { useSocket } from '../../hooks/useSocket'
+import { useVote } from '../../hooks/useVote'
 import { useSession } from '../../hooks/useSession'
-import { registerConnect, unregisterConnect } from '../../sendMessageBridge'
+import { registerConnect, unregisterConnect, registerVote, unregisterVote } from '../../sendMessageBridge'
 import type { AttachmentItem } from '../../types'
 
 interface ChatWindowProps {
@@ -28,6 +29,7 @@ export function ChatWindow({ position }: ChatWindowProps) {
   const isProcessing = isAgentTyping || hasPending || isWaitingForAgent
 
   const { connect, sendMessage } = useSocket()
+  const { vote } = useVote()
   const session = useSession(config?.session)
   const savedFields = session.load()
 
@@ -35,6 +37,12 @@ export function ChatWindow({ position }: ChatWindowProps) {
     registerConnect(connect)
     return () => unregisterConnect()
   }, [connect])
+
+  // Lets StackAIChat.vote() reach into the React tree from outside
+  useEffect(() => {
+    registerVote((actionId, type) => { void vote(actionId, type) })
+    return () => unregisterVote()
+  }, [vote])
 
   // Bug fix: khi ChatWindow remount (close → reopen) mà phase vẫn là 'chat'
   // socket đã bị disconnect do unmount → cần reconnect lại

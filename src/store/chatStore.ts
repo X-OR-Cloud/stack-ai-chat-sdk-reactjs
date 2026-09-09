@@ -25,6 +25,8 @@ interface ChatState {
   historyHasMore: boolean
   isLoadingHistory: boolean
 
+  votingUnavailable: boolean
+
   // Reference quote injected by host webapp
   reference: string | null
 
@@ -45,11 +47,13 @@ interface ChatState {
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   removeMessage: (localId: string) => void
+  setReaction: (messageId: string, patch: Partial<Pick<Message, 'userReaction' | 'likes' | 'dislikes' | 'votePending'>>) => void
   setAgentTyping: (typing: boolean) => void
   setWaitingForAgent: (waiting: boolean) => void
   setStreaming: (streaming: { actionId: string; content: string } | null) => void
   setHistoryHasMore: (hasMore: boolean) => void
   setLoadingHistory: (loading: boolean) => void
+  setVotingUnavailable: (v: boolean) => void
   reset: () => void
   resetSession: () => void
 }
@@ -66,6 +70,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   streaming: null,
   historyHasMore: false,
   isLoadingHistory: false,
+  votingUnavailable: false,
   reference: null,
   userFields: {},
 
@@ -121,6 +126,15 @@ export const useChatStore = create<ChatState>()((set) => ({
       messages: state.messages.filter((m) => m.localId !== localId),
     })),
 
+  // Votes are matched by messageId (the real server id). Greeting and optimistic messages
+  // only carry a localId, so they can never be voted on — which is the intent.
+  setReaction: (messageId, patch) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.messageId === messageId ? { ...m, ...patch } : m
+      ),
+    })),
+
   setAgentTyping: (typing) => set({ isAgentTyping: typing }),
 
   setWaitingForAgent: (waiting) => set({ isWaitingForAgent: waiting }),
@@ -130,6 +144,8 @@ export const useChatStore = create<ChatState>()((set) => ({
   setHistoryHasMore: (hasMore) => set({ historyHasMore: hasMore }),
 
   setLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
+
+  setVotingUnavailable: (v) => set({ votingUnavailable: v }),
 
   resetSession: () =>
     set({
@@ -155,6 +171,7 @@ export const useChatStore = create<ChatState>()((set) => ({
       streaming: null,
       historyHasMore: false,
       isLoadingHistory: false,
+      votingUnavailable: false,
       reference: null,
       userFields: {},
     }),
