@@ -148,6 +148,9 @@ export interface SDKConfig {
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
 
+  /** Streaming reveal tuning. Default: { smooth: true, tickMs: 30, wordsPerTick: 1, catchupCharsPerWord: 120, finishingExtraWords: 2 } */
+  streaming?: StreamingConfig
+
   /**
    * Token refresh callback — called by SDK on every Socket.IO reconnect_attempt.
    * Return the latest token (sync or async). If not provided, SDK uses the token
@@ -227,6 +230,27 @@ export type VoteType = 'like' | 'dislike'
 
 /** Toggle outcome decided by the server — never derived on the client */
 export type VoteAction = 'created' | 'updated' | 'removed'
+
+/**
+ * How a streamed answer (`message:chunk`) is revealed.
+ * Defaults to word-by-word reveal to avoid jerkiness when server chunks are large or uneven.
+ */
+export interface StreamingConfig {
+  /** Reveal content word by word instead of painting each chunk on arrival. Default: true */
+  smooth?: boolean
+  /** Interval (ms) between reveals. Default: 100 */
+  tickMs?: number
+  /** Words revealed per tick when caught up with the server. Default: 1 */
+  wordsPerTick?: number
+  /**
+   * Adaptive catch-up: for every N unrevealed characters (backlog = received - displayed),
+   * reveal one extra word per tick. Keeps the UI from lagging behind a fast server while
+   * staying slow and smooth when nearly caught up. Default: 120
+   */
+  catchupCharsPerWord?: number
+  /** Extra words per tick once the final message has arrived, so the final bubble swaps in sooner. Default: 2 */
+  finishingExtraWords?: number
+}
 
 export interface VotingConfig {
   /** Show vote buttons under agent answers. Default: false (opt-in) */

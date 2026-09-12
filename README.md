@@ -213,6 +213,7 @@ Unmount the widget and clean up all resources.
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
 | `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
+| `streaming` | `StreamingConfig` | — | How streamed answers are revealed. See [Streaming](#streaming). Default: word-by-word |
 | `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
@@ -351,6 +352,29 @@ The server determines the flow based on your JWT `type` claim:
 - **TypeScript** — full type definitions included
 
 ---
+
+## Streaming
+
+While the agent composes an answer the server emits `message:chunk` deltas. Chunks vary in size and
+arrive at uneven intervals, so painting each one as it lands looks jerky. By default the SDK buffers
+them and reveals the text **word by word** at a fixed cadence, speeding up automatically when it falls
+behind the server, and finishes revealing the remainder before swapping in the final message.
+
+```ts
+StackAIChat.init({
+  // ...
+  streaming: {
+    smooth: true,               // false = paint each chunk as it arrives (previous behaviour)
+    tickMs: 100,                // interval between reveals
+    wordsPerTick: 1,            // words revealed per tick when caught up with the server
+    catchupCharsPerWord: 120,   // +1 word/tick for every N unrevealed characters
+    finishingExtraWords: 2,     // extra words/tick once the final message has arrived
+  },
+})
+```
+
+All fields are optional; the values above are the defaults. They can also be changed at runtime with
+`StackAIChat.updateConfig({ streaming: { tickMs: 50 } })` — the next tick picks them up.
 
 ## Voting & Copy
 

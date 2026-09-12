@@ -46,6 +46,14 @@ export function resolveSocketParams(wsUrl: string, socketPathOverride?: string):
   }
 }
 
+// Join consecutive chunks from the start; stop at the first gap. Server may index from 0 or 1.
+function contiguousContent(chunks: Map<number, string>): string {
+  let i = chunks.has(0) ? 0 : 1
+  let out = ''
+  for (let delta = chunks.get(i); delta !== undefined; delta = chunks.get(++i)) out += delta
+  return out
+}
+
 /** Server gửi shape: { _id, role, content, type, createdAt, sources, attachments, isFinal, ... } */
 interface ServerMessage {
   _id?: string
@@ -552,10 +560,6 @@ export function useSocket() {
     socket.on('message:chunk', (payload: MessageChunkPayload) => {
       if (!payload?.actionId || typeof payload.delta !== 'string') return
 
-      // Chunk thay thế typing dots bằng bubble nội dung thật
-      setAgentTyping(false)
-      if (typingTimeout) clearTimeout(typingTimeout)
-
       let entry = chunksRef.current.get(payload.actionId)
       if (!entry) {
         entry = new Map()
@@ -563,10 +567,14 @@ export function useSocket() {
       }
       entry.set(payload.chunkIndex, payload.delta)
 
-      const content = [...entry.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([, delta]) => delta)
-        .join('')
+      // Only push the contiguous prefix — out-of-order chunks wait in the buffer, so content
+      // only ever appends and never gets inserted mid-text (avoids visible text jumps)
+      const content = contiguousContent(entry)
+      if (!content) return // first chunk not here yet → keep typing dots
+
+      // Chunk thay thế typing dots bằng bubble nội dung thật
+      setAgentTyping(false)
+      if (typingTimeout) clearTimeout(typingTimeout)
       setStreaming({ actionId: payload.actionId, content })
     })
 
