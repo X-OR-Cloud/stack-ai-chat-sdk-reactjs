@@ -96,6 +96,11 @@ StackAIChat.init({
   // Default: true
   showReferences: false,
 
+  // ── Streaming ──────────────────────────────────────────
+  // Reveal pace of streamed answers, in words per second.
+  // Default: 10. Set 0 to paint each chunk as it arrives.
+  streaming: { wordsPerSecond: 10 },
+
   // ── Custom Styles ──────────────────────────────────────
   // Override CSS for individual UI components (injected into Shadow DOM).
   customStyles: {
