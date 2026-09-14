@@ -87,12 +87,8 @@ export function DemoApp() {
   const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
   const [votingEnabled, setVotingEnabled]   = useState(false)
   const [maxInputLength, setMaxInputLength] = useState(1000)
-  // Streaming reveal — tất cả có thể đổi lúc runtime qua updateConfig()
-  const [streamSmooth, setStreamSmooth]               = useState(true)
-  const [streamTickMs, setStreamTickMs]               = useState(100)
-  const [streamWordsPerTick, setStreamWordsPerTick]   = useState(1)
-  const [streamCatchup, setStreamCatchup]             = useState(120)
-  const [streamFinishing, setStreamFinishing]         = useState(2)
+  // Streaming reveal speed (từ/giây, 0 = tắt) — đổi được lúc runtime qua updateConfig()
+  const [streamWordsPerSecond, setStreamWordsPerSecond] = useState(10)
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
   // ── Visible message types ───────────────────────────────────────────────────
@@ -244,13 +240,7 @@ export function DemoApp() {
     referenceDisplay,
     voting: { enabled: votingEnabled },
     maxInputLength,
-    streaming: {
-      smooth: streamSmooth,
-      tickMs: streamTickMs,
-      wordsPerTick: streamWordsPerTick,
-      catchupCharsPerWord: streamCatchup,
-      finishingExtraWords: streamFinishing,
-    },
+    streaming: { wordsPerSecond: streamWordsPerSecond },
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
@@ -269,7 +259,7 @@ export function DemoApp() {
     if (!initialized) return
     StackAIChat.updateConfig({ streaming: sdkConfig.streaming })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialized, streamSmooth, streamTickMs, streamWordsPerTick, streamCatchup, streamFinishing])
+  }, [initialized, streamWordsPerSecond])
 
   function handleOpenInNewWindow() {
     if (!wsUrl || !token) {
@@ -507,23 +497,10 @@ export function DemoApp() {
               {/* Streaming */}
               <section className="demo-section">
                 <h3 className="demo-section__title">⌨️ Streaming</h3>
-                <p className="demo-hint">Cách nhả câu trả lời đang stream. Đổi được ngay khi widget đang chạy (updateConfig).</p>
-                <label className="demo-toggle">
-                  <input type="checkbox" checked={streamSmooth} onChange={(e) => setStreamSmooth(e.target.checked)} />
-                  <span>Nhả theo từ (tắt = hiện nguyên chunk khi đến)</span>
-                </label>
-                {[
-                  { label: 'tickMs — nhịp nhả (ms)', value: streamTickMs, set: setStreamTickMs, min: 8, max: 500, step: 4 },
-                  { label: 'wordsPerTick — số từ mỗi nhịp', value: streamWordsPerTick, set: setStreamWordsPerTick, min: 1, max: 10, step: 1 },
-                  { label: 'catchupCharsPerWord — mỗi N ký tự backlog → +1 từ/nhịp', value: streamCatchup, set: setStreamCatchup, min: 10, max: 1000, step: 10 },
-                  { label: 'finishingExtraWords — từ nhả thêm sau khi có final chunk', value: streamFinishing, set: setStreamFinishing, min: 0, max: 20, step: 1 },
-                ].map((f) => (
-                  <div key={f.label}>
-                    <label className="demo-label">{f.label}</label>
-                    <input type="number" className="demo-input" min={f.min} max={f.max} step={f.step} value={f.value} disabled={!streamSmooth}
-                      onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) f.set(n) }} />
-                  </div>
-                ))}
+                <p className="demo-hint">Tốc độ nhả câu trả lời đang stream (từ/giây). 0 = hiện nguyên chunk khi đến. Đổi được ngay khi widget đang chạy.</p>
+                <label className="demo-label">wordsPerSecond</label>
+                <input type="number" className="demo-input" min={0} max={200} step={1} value={streamWordsPerSecond}
+                  onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setStreamWordsPerSecond(n) }} />
               </section>
 
               {/* Visible message types */}

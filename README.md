@@ -213,7 +213,7 @@ Unmount the widget and clean up all resources.
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
 | `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
-| `streaming` | `StreamingConfig` | — | How streamed answers are revealed. See [Streaming](#streaming). Default: word-by-word |
+| `streaming` | `StreamingConfig` | — | `{ wordsPerSecond }` — reveal pace of streamed answers, `0` = off. See [Streaming](#streaming). Default: `10` |
 | `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
@@ -363,18 +363,14 @@ behind the server, and finishes revealing the remainder before swapping in the f
 ```ts
 StackAIChat.init({
   // ...
-  streaming: {
-    smooth: true,               // false = paint each chunk as it arrives (previous behaviour)
-    tickMs: 100,                // interval between reveals
-    wordsPerTick: 1,            // words revealed per tick when caught up with the server
-    catchupCharsPerWord: 120,   // +1 word/tick for every N unrevealed characters
-    finishingExtraWords: 2,     // extra words/tick once the final message has arrived
-  },
+  streaming: { wordsPerSecond: 10 },   // default; 0 = paint each chunk as it arrives
 })
 ```
 
-All fields are optional; the values above are the defaults. They can also be changed at runtime with
-`StackAIChat.updateConfig({ streaming: { tickMs: 50 } })` — the next tick picks them up.
+The SDK speeds up on its own when it falls behind the server and finishes revealing the
+remainder before swapping in the final message, so `wordsPerSecond` is the pace you see when
+the server is not the bottleneck. It can be changed at runtime with
+`StackAIChat.updateConfig({ streaming: { wordsPerSecond: 20 } })`.
 
 ## Voting & Copy
 

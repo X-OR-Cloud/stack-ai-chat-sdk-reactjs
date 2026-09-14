@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChatStore } from '../store/chatStore'
-import type { StreamingConfig } from '../types'
 
 interface StreamTarget {
   actionId: string
@@ -12,29 +11,20 @@ export interface SmoothStream {
   content: string
 }
 
-export const DEFAULT_STREAMING_CONFIG: Required<StreamingConfig> = {
-  smooth: true,
-  // Reveal cadence — lower is smoother but runs renderMarkdown more often
-  tickMs: 100,
-  wordsPerTick: 1,
-  // For every N unrevealed characters (backlog), reveal +1 word per tick to catch up with the server
-  catchupCharsPerWord: 120,
-  // Once the server has finalized, reveal the remainder faster so the final bubble swaps in sooner
-  finishingExtraWords: 2,
-}
+/** Default reveal pace when the server is not the bottleneck (config.streaming.wordsPerSecond) */
+export const DEFAULT_WORDS_PER_SECOND = 10
 
-// Read config on every tick (no caching) so updateConfig() takes effect at runtime immediately
-function resolveStreamingConfig(): Required<StreamingConfig> {
-  const cfg = useChatStore.getState().config?.streaming
-  const num = (v: number | undefined, def: number, min: number) =>
-    typeof v === 'number' && Number.isFinite(v) && v >= min ? v : def
-  return {
-    smooth: cfg?.smooth ?? DEFAULT_STREAMING_CONFIG.smooth,
-    tickMs: num(cfg?.tickMs, DEFAULT_STREAMING_CONFIG.tickMs, 8),
-    wordsPerTick: num(cfg?.wordsPerTick, DEFAULT_STREAMING_CONFIG.wordsPerTick, 1),
-    catchupCharsPerWord: num(cfg?.catchupCharsPerWord, DEFAULT_STREAMING_CONFIG.catchupCharsPerWord, 1),
-    finishingExtraWords: num(cfg?.finishingExtraWords, DEFAULT_STREAMING_CONFIG.finishingExtraWords, 0),
-  }
+// Reveal cadence — lower is smoother but runs renderMarkdown more often
+const TICK_MS = 100
+// For every N unrevealed characters (backlog), reveal +1 word per tick to catch up with the server
+const CATCHUP_CHARS_PER_WORD = 120
+// Once the server has finalized, reveal the remainder faster so the final bubble swaps in sooner
+const FINISHING_EXTRA_WORDS = 2
+
+// Invalid/missing → default; 0 means smoothing is disabled
+function resolveWordsPerSecond(v: number | undefined): number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return DEFAULT_WORDS_PER_SECOND
+  return v
 }
 
 function isSpace(ch: string): boolean {
@@ -57,15 +47,17 @@ function nextWordEnd(text: string, pos: number): number {
  * before returning null — the caller keeps the streaming bubble until then to avoid a
  * layout jump.
  *
- * Tuning comes from `config.streaming` (see DEFAULT_STREAMING_CONFIG); `smooth: false`
- * returns the store content as-is (previous behaviour: paint each chunk on arrival).
+ * Pace comes from `config.streaming.wordsPerSecond`; `0` returns the store content as-is
+ * (previous behaviour: paint each chunk on arrival).
  */
 export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | null {
-  const smooth = useChatStore((s) => s.config?.streaming?.smooth ?? DEFAULT_STREAMING_CONFIG.smooth)
+  const smooth = useChatStore((s) => resolveWordsPerSecond(s.config?.streaming?.wordsPerSecond) > 0)
   const [shown, setShown] = useState<SmoothStream | null>(null)
   const targetRef = useRef<StreamTarget | null>(null)
   const shownLenRef = useRef(0)
   const shownTextRef = useRef('')
+  // Fractional words carried over between ticks (e.g. 15 wps at 100ms = 1.5 words/tick)
+  const carryRef = useRef(0)
   const finishingRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -76,6 +68,7 @@ export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | 
         // New stream (or the first one) — start from scratch
         shownLenRef.current = 0
         shownTextRef.current = ''
+        carryRef.current = 0
         setShown({ actionId: streaming.actionId, content: '' })
       }
       targetRef.current = streaming
@@ -93,7 +86,6 @@ export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | 
         return
       }
 
-      const opts = resolveStreamingConfig()
       const text = target.content
       // Guard against the target changing in the middle (a late chunk inserted before
       // already-revealed text): fall back to the common prefix and re-reveal from there
@@ -108,8 +100,14 @@ export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | 
       const backlog = text.length - shownLenRef.current
 
       if (backlog > 0) {
-        let words = opts.wordsPerTick + Math.floor(backlog / opts.catchupCharsPerWord)
-        if (finishingRef.current) words += opts.finishingExtraWords
+        // Read config on every tick (no caching) so updateConfig() takes effect immediately
+        const wps = resolveWordsPerSecond(useChatStore.getState().config?.streaming?.wordsPerSecond)
+        const budget = carryRef.current
+          + wps * (TICK_MS / 1000)
+          + Math.floor(backlog / CATCHUP_CHARS_PER_WORD)
+          + (finishingRef.current ? FINISHING_EXTRA_WORDS : 0)
+        let words = Math.floor(budget)
+        carryRef.current = budget - words
         let pos = shownLenRef.current
         while (words-- > 0 && pos < text.length) pos = nextWordEnd(text, pos)
         shownLenRef.current = pos
@@ -120,16 +118,17 @@ export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | 
         targetRef.current = null
         shownLenRef.current = 0
         shownTextRef.current = ''
+        carryRef.current = 0
         finishingRef.current = false
         setShown(null)
         timerRef.current = null
         return
       }
 
-      timerRef.current = setTimeout(tick, opts.tickMs)
+      timerRef.current = setTimeout(tick, TICK_MS)
     }
 
-    timerRef.current = setTimeout(tick, resolveStreamingConfig().tickMs)
+    timerRef.current = setTimeout(tick, TICK_MS)
   }, [streaming, smooth])
 
   // Unmount → stop the ticker
@@ -140,6 +139,6 @@ export function useSmoothStream(streaming: StreamTarget | null): SmoothStream | 
     }
   }, [])
 
-  // Smooth disabled → return store content as-is (previous behaviour: paint each chunk on arrival)
+  // Smoothing disabled → return store content as-is (previous behaviour: paint each chunk on arrival)
   return smooth ? shown : streaming
 }

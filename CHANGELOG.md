@@ -13,7 +13,7 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** — chờ test với backend thật trước khi chạy `npm run release:patch`.
 
 ### Added
-- **Streaming nhả theo từ** (`config.streaming`, mặc định bật). Trước đây mỗi `message:chunk` được vẽ nguyên cục ngay khi đến — chunk to/nhỏ, đến nhanh/chậm không đều nên chữ nhảy giật. Giờ nội dung được buffer rồi nhả từng từ theo nhịp cố định (`tickMs`, mặc định 100ms), tự tăng tốc khi tụt lại so với server (`catchupCharsPerWord`), và nhả nốt phần dư trước khi swap sang bubble final (`finishingExtraWords`) để không nhảy layout. `smooth: false` trả về hành vi cũ. Đổi được lúc runtime qua `updateConfig()`.
+- **Streaming nhả theo từ** (`config.streaming.wordsPerSecond`, mặc định `10`). Trước đây mỗi `message:chunk` được vẽ nguyên cục ngay khi đến — chunk to/nhỏ, đến nhanh/chậm không đều nên chữ nhảy giật. Giờ nội dung được buffer rồi nhả từng từ theo tốc độ cấu hình, tự tăng tốc khi tụt lại so với server, và nhả nốt phần dư trước khi swap sang bubble final để không nhảy layout. `wordsPerSecond: 0` trả về hành vi cũ. Đổi được lúc runtime qua `updateConfig()`.
 - Chỉ hiển thị phần chunk **liên tục từ đầu** — chunk đến sớm hơn thứ tự nằm chờ trong buffer thay vì bị chèn vào giữa đoạn đã hiện. Chunk mất hẳn thì bubble chờ tới `message:new` final (nguồn sự thật) — chưa có timeout bỏ qua.
 
 ## [0.14.0] - 2026-09-09

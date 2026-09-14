@@ -148,7 +148,7 @@ export interface SDKConfig {
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
 
-  /** Streaming reveal tuning. Default: { smooth: true, tickMs: 30, wordsPerTick: 1, catchupCharsPerWord: 120, finishingExtraWords: 2 } */
+  /** Streaming reveal speed. Default: { wordsPerSecond: 10 }; 0 = paint chunks as they arrive */
   streaming?: StreamingConfig
 
   /**
@@ -236,20 +236,12 @@ export type VoteAction = 'created' | 'updated' | 'removed'
  * Defaults to word-by-word reveal to avoid jerkiness when server chunks are large or uneven.
  */
 export interface StreamingConfig {
-  /** Reveal content word by word instead of painting each chunk on arrival. Default: true */
-  smooth?: boolean
-  /** Interval (ms) between reveals. Default: 100 */
-  tickMs?: number
-  /** Words revealed per tick when caught up with the server. Default: 1 */
-  wordsPerTick?: number
   /**
-   * Adaptive catch-up: for every N unrevealed characters (backlog = received - displayed),
-   * reveal one extra word per tick. Keeps the UI from lagging behind a fast server while
-   * staying slow and smooth when nearly caught up. Default: 120
+   * Reveal speed in words per second. The SDK speeds up automatically when it falls
+   * behind the server, so this is the pace you see when the server is not the bottleneck.
+   * `0` disables the effect and paints each chunk as it arrives. Default: 10
    */
-  catchupCharsPerWord?: number
-  /** Extra words per tick once the final message has arrived, so the final bubble swaps in sooner. Default: 2 */
-  finishingExtraWords?: number
+  wordsPerSecond?: number
 }
 
 export interface VotingConfig {
