@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StackAIChat } from '../src/index'
 import { resolveSocketParams } from '../src/hooks/useSocket'
 import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
@@ -87,6 +87,8 @@ export function DemoApp() {
   const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
   const [votingEnabled, setVotingEnabled]   = useState(false)
   const [maxInputLength, setMaxInputLength] = useState(1000)
+  // Streaming reveal speed (từ/giây, 0 = tắt) — đổi được lúc runtime qua updateConfig()
+  const [streamWordsPerSecond, setStreamWordsPerSecond] = useState(10)
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
   // ── Visible message types ───────────────────────────────────────────────────
@@ -238,6 +240,7 @@ export function DemoApp() {
     referenceDisplay,
     voting: { enabled: votingEnabled },
     maxInputLength,
+    streaming: { wordsPerSecond: streamWordsPerSecond },
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
@@ -250,6 +253,13 @@ export function DemoApp() {
     ...sdkConfigWithoutRegex,
     hideKnowledgeSearch,
   }
+
+  // Streaming tuning có hiệu lực ngay ở tick kế tiếp — không cần destroy/init lại
+  useEffect(() => {
+    if (!initialized) return
+    StackAIChat.updateConfig({ streaming: sdkConfig.streaming })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, streamWordsPerSecond])
 
   function handleOpenInNewWindow() {
     if (!wsUrl || !token) {
@@ -482,6 +492,15 @@ export function DemoApp() {
                     onChange={(e) => setMaxInputLength(Number(e.target.value))} style={{ flex: 1 }} />
                   <span style={{ minWidth: '40px', textAlign: 'right', fontSize: '13px', fontWeight: 600 }}>{maxInputLength}</span>
                 </div>
+              </section>
+
+              {/* Streaming */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">⌨️ Streaming</h3>
+                <p className="demo-hint">Tốc độ nhả câu trả lời đang stream (từ/giây). 0 = hiện nguyên chunk khi đến. Đổi được ngay khi widget đang chạy.</p>
+                <label className="demo-label">wordsPerSecond</label>
+                <input type="number" className="demo-input" min={0} max={200} step={1} value={streamWordsPerSecond}
+                  onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setStreamWordsPerSecond(n) }} />
               </section>
 
               {/* Visible message types */}

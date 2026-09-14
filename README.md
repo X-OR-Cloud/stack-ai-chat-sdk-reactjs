@@ -96,6 +96,11 @@ StackAIChat.init({
   // Default: true
   showReferences: false,
 
+  // ── Streaming ──────────────────────────────────────────
+  // Reveal pace of streamed answers, in words per second.
+  // Default: 10. Set 0 to paint each chunk as it arrives.
+  streaming: { wordsPerSecond: 10 },
+
   // ── Custom Styles ──────────────────────────────────────
   // Override CSS for individual UI components (injected into Shadow DOM).
   customStyles: {
@@ -213,6 +218,7 @@ Unmount the widget and clean up all resources.
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
 | `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
+| `streaming` | `StreamingConfig` | — | `{ wordsPerSecond }` — reveal pace of streamed answers, `0` = off. See [Streaming](#streaming). Default: `10` |
 | `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
 | `onOpen` | `() => void` | — | Called when widget opens |
@@ -351,6 +357,25 @@ The server determines the flow based on your JWT `type` claim:
 - **TypeScript** — full type definitions included
 
 ---
+
+## Streaming
+
+While the agent composes an answer the server emits `message:chunk` deltas. Chunks vary in size and
+arrive at uneven intervals, so painting each one as it lands looks jerky. By default the SDK buffers
+them and reveals the text **word by word** at a fixed cadence, speeding up automatically when it falls
+behind the server, and finishes revealing the remainder before swapping in the final message.
+
+```ts
+StackAIChat.init({
+  // ...
+  streaming: { wordsPerSecond: 10 },   // default; 0 = paint each chunk as it arrives
+})
+```
+
+The SDK speeds up on its own when it falls behind the server and finishes revealing the
+remainder before swapping in the final message, so `wordsPerSecond` is the pace you see when
+the server is not the bottleneck. It can be changed at runtime with
+`StackAIChat.updateConfig({ streaming: { wordsPerSecond: 20 } })`.
 
 ## Voting & Copy
 

@@ -13,7 +13,7 @@ import type { SDKConfig, SendMessagePayload, VoteType } from './types'
 import { SDK_VERSION } from './version'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null

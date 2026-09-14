@@ -148,6 +148,9 @@ export interface SDKConfig {
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
 
+  /** Streaming reveal speed. Default: { wordsPerSecond: 10 }; 0 = paint chunks as they arrive */
+  streaming?: StreamingConfig
+
   /**
    * Token refresh callback — called by SDK on every Socket.IO reconnect_attempt.
    * Return the latest token (sync or async). If not provided, SDK uses the token
@@ -227,6 +230,19 @@ export type VoteType = 'like' | 'dislike'
 
 /** Toggle outcome decided by the server — never derived on the client */
 export type VoteAction = 'created' | 'updated' | 'removed'
+
+/**
+ * How a streamed answer (`message:chunk`) is revealed.
+ * Defaults to word-by-word reveal to avoid jerkiness when server chunks are large or uneven.
+ */
+export interface StreamingConfig {
+  /**
+   * Reveal speed in words per second. The SDK speeds up automatically when it falls
+   * behind the server, so this is the pace you see when the server is not the bottleneck.
+   * `0` disables the effect and paints each chunk as it arrives. Default: 10
+   */
+  wordsPerSecond?: number
+}
 
 export interface VotingConfig {
   /** Show vote buttons under agent answers. Default: false (opt-in) */
