@@ -374,6 +374,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .md-body .md-code-block { margin: 4px 0; padding: 10px 12px; border-radius: var(--sai-radius-sm); background: rgba(0,0,0,0.15); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
 .md-body .md-link { color: var(--sai-primary); text-decoration: underline; transition: color var(--sai-transition); }
 .md-body .md-link:hover { color: var(--sai-primary-hover); }
+.md-body .md-link--labeled { font-weight: 600; }
 .md-body .md-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; }
 .md-body .md-table th, .md-body .md-table td { padding: 6px 10px; border: 1px solid var(--sai-border); }
 .md-body .md-table th { font-weight: 600; background: rgba(0,0,0,0.05); }

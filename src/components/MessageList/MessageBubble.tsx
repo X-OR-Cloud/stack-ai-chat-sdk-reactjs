@@ -50,6 +50,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const formatLinkLabel = useChatStore((s) => s.config?.formatLinkLabel)
   const referenceDisplay = useChatStore((s) => {
     const cfg = s.config
     if (cfg?.referenceDisplay) return cfg.referenceDisplay
@@ -117,7 +118,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className="message-row assistant">
       <div className="agent-content">
-        <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+        <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content, { formatLinkLabel }) }} />
         {message.attachments.length > 0 && (
           <div className="message-attachments">
             {message.attachments.map((att, i) => <AttachmentChip key={i} attachment={att} />)}

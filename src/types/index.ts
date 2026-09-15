@@ -152,6 +152,14 @@ export interface SDKConfig {
   streaming?: StreamingConfig
 
   /**
+   * Label for bare URLs in agent answers (e.g. "…tham khao tai https://long/url."). Return a
+   * short label such as "Xem thu tuc" to render "…tham khao tai [Xem thu tuc]." instead of the
+   * raw URL; return null/undefined to keep the URL. Markdown links `[label](url)` keep their
+   * own label. Only http(s) URLs are passed in.
+   */
+  formatLinkLabel?: (url: string) => string | null | undefined
+
+  /**
    * Token refresh callback — called by SDK on every Socket.IO reconnect_attempt.
    * Return the latest token (sync or async). If not provided, SDK uses the token
    * from init()/updateToken() (which may be stale if it expired while disconnected).
