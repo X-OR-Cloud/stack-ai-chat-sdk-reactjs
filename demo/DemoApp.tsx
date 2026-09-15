@@ -89,6 +89,8 @@ export function DemoApp() {
   const [maxInputLength, setMaxInputLength] = useState(1000)
   // Streaming reveal speed (từ/giây, 0 = tắt) — đổi được lúc runtime qua updateConfig()
   const [streamWordsPerSecond, setStreamWordsPerSecond] = useState(10)
+  // Nhãn thay cho URL thô trong câu trả lời (rỗng = giữ nguyên URL)
+  const [linkLabel, setLinkLabel] = useState('')
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
   // ── Visible message types ───────────────────────────────────────────────────
@@ -241,6 +243,7 @@ export function DemoApp() {
     voting: { enabled: votingEnabled },
     maxInputLength,
     streaming: { wordsPerSecond: streamWordsPerSecond },
+    ...(linkLabel.trim() ? { formatLinkLabel: () => linkLabel.trim() } : {}),
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
@@ -501,6 +504,14 @@ export function DemoApp() {
                 <label className="demo-label">wordsPerSecond</label>
                 <input type="number" className="demo-input" min={0} max={200} step={1} value={streamWordsPerSecond}
                   onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setStreamWordsPerSecond(n) }} />
+              </section>
+
+              {/* Links */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">🔗 Links</h3>
+                <p className="demo-hint">Nhãn thay cho URL thô trong câu trả lời (formatLinkLabel). Để trống = hiện nguyên URL. Cần Destroy → Khởi tạo lại.</p>
+                <input type="text" className="demo-input" value={linkLabel} placeholder="VD: Xem thủ tục"
+                  onChange={(e) => setLinkLabel(e.target.value)} />
               </section>
 
               {/* Visible message types */}

@@ -13,14 +13,85 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function inlineMarkdown(text: string): string {
-  let html = text
-    // Escape HTML first
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+export interface RenderMarkdownOptions {
+  /**
+   * Label for bare URLs found in the text (not for `[label](url)` links, which keep their
+   * own label). Return a short human-readable label, e.g. "Xem thủ tục"; falsy → show the URL.
+   */
+  formatLinkLabel?: (url: string) => string | null | undefined
+}
+
+// Only these schemes may become hrefs — blocks javascript:, data:, vbscript:, etc.
+const SAFE_HREF = /^(https?:\/\/|mailto:|tel:)/i
+
+// Bare URL / www. / domain / email detection. The domain form requires a TLD of 2+ letters
+// so "x-or.cloud" or "abc.gov.vn" match without a hardcoded TLD list.
+const BARE_LINK_RE =
+  /\bhttps?:\/\/[^\s<>"'`]+|\bwww\.[^\s<>"'`]+|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/[^\s<>"'`]*)?(?![a-z0-9@])/gi
+
+// Scheme-less "name.ext" that is a file, not a domain
+const FILE_EXT_RE = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|json|xml|html?|md|js|ts|css|png|jpe?g|gif|svg|webp|zip|rar|7z|exe|mp[34]|wav|mov|avi)$/i
+
+// Strip sentence punctuation glued to the end of a bare URL ("…/page." or "(see …/page)").
+// A closing ")" is kept only when the URL itself contains a matching "(" (Wikipedia-style).
+function trimTrailingPunctuation(url: string): { url: string; rest: string } {
+  let end = url.length
+  while (end > 0) {
+    const ch = url[end - 1]
+    if ('.,;:!?\'"'.includes(ch)) { end--; continue }
+    if (ch === ')') {
+      const body = url.slice(0, end)
+      const open = (body.match(/\(/g) ?? []).length
+      const close = (body.match(/\)/g) ?? []).length
+      if (close > open) { end--; continue }
+    }
+    break
+  }
+  return { url: url.slice(0, end), rest: url.slice(end) }
+}
+
+function anchor(href: string, labelHtml: string, extraClass = ''): string {
+  if (!SAFE_HREF.test(href)) return labelHtml
+  const cls = extraClass ? `md-link ${extraClass}` : 'md-link'
+  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="${cls}">${labelHtml}</a>`
+}
+
+function inlineMarkdown(text: string, opts: RenderMarkdownOptions = {}): string {
+  // 1. Pull out segments whose content must not be touched by the emphasis regexes below
+  //    (inline code, links, bare URLs) and swap them for placeholders. Otherwise "_" or "*"
+  //    inside a URL becomes <em>, and "&" in a query string gets escaped twice.
+  const slots: string[] = []
+  const stash = (html: string): string => {
+    slots.push(html)
+    return `\u0000${slots.length - 1}\u0000`
+  }
+
+  const src = text
     // Inline code: `code`
-    .replace(/`([^`]+)`/g, '<code class="md-code-inline">$1</code>')
+    .replace(/`([^`]+)`/g, (_m, code) => stash(`<code class="md-code-inline">${escapeHtml(code)}</code>`))
+    // Markdown link: [label](url) or [label](url "title")
+    .replace(/\[([^\]]+)\]\(\s*(\S+?)(?:\s+"[^"]*")?\s*\)/g, (m, label, url) =>
+      SAFE_HREF.test(url) ? stash(anchor(url, inlineMarkdown(label, opts))) : m
+    )
+    // Autolink syntax: <https://…>
+    .replace(/<(https?:\/\/[^\s<>]+)>/g, (_m, url) => stash(anchor(url, escapeHtml(url))))
+    // Bare URL / domain / email
+    .replace(BARE_LINK_RE, (match) => {
+      const { url, rest } = trimTrailingPunctuation(match)
+      if (!url) return match
+      const isEmail = /^[a-z0-9._%+-]+@/i.test(url)
+      // "report.pdf" / "index.html" look like domains but are file names — leave them alone
+      if (!isEmail && !/^(https?:\/\/|www\.)/i.test(url) && !url.includes('/') && FILE_EXT_RE.test(url)) return match
+      let href = url
+      if (isEmail) href = 'mailto:' + url
+      else if (!/^https?:\/\//i.test(url)) href = 'https://' + url
+      const custom = isEmail ? null : opts.formatLinkLabel?.(href)
+      const labelHtml = escapeHtml(custom || url)
+      return stash(anchor(href, labelHtml, custom ? 'md-link--labeled' : '')) + rest
+    })
+
+  // 2. Escape what is left, then apply emphasis
+  const html = escapeHtml(src)
     // Bold+italic: ***text***
     .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
     // Bold: **text**
@@ -30,34 +101,12 @@ function inlineMarkdown(text: string): string {
     .replace(/_(.+?)_/g, '<em>$1</em>')
     // Strikethrough: ~~text~~
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
-    // Links: [text](url)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_m, label, url) => {
-      const safeUrl = escapeHtml(url)
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`
-    })
 
-  // Autolink plain URLs, skipping anything already inside <code> or <a> tags
-  const autolinkRegex = /(<code[^>]*>[\s\S]*?<\/code>|<a[^>]*>[\s\S]*?<\/a>)|(\bhttps?:\/\/[^\s<>()]+|\bwww\.[^\s<>()]+|\b[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*\.(?:gov\.vn|vn|com|net|org|edu|info|biz)(?:\/[^\s<>()]*)?\b)/gi
-  html = html.replace(autolinkRegex, (match, skippedTag, plainUrl) => {
-    if (skippedTag) {
-      return skippedTag
-    }
-    if (plainUrl) {
-      let href = plainUrl
-      if (!/^https?:\/\//i.test(href)) {
-        href = 'https://' + href
-      }
-      const safeUrl = escapeHtml(href)
-      const safeLabel = escapeHtml(plainUrl)
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${safeLabel}</a>`
-    }
-    return match
-  })
-
-  return html
+  // 3. Restore stashed segments
+  return html.replace(/\u0000(\d+)\u0000/g, (_m, i) => slots[Number(i)])
 }
 
-export function renderMarkdown(raw: string): string {
+export function renderMarkdown(raw: string, opts: RenderMarkdownOptions = {}): string {
   // Convert list numbering format like "1)" or "1) " to "1. " at the start of any line
   const normalized = raw.replace(/^(\s*\d+)\)\s*/gm, '$1. ')
   const lines = normalized.split('\n')
@@ -93,7 +142,7 @@ export function renderMarkdown(raw: string): string {
     const headingMatch = line.match(/^(#{1,6})\s+(.+)/)
     if (headingMatch) {
       const level = headingMatch[1].length
-      output.push(`<h${level} class="md-h${level}">${inlineMarkdown(headingMatch[2])}</h${level}>`)
+      output.push(`<h${level} class="md-h${level}">${inlineMarkdown(headingMatch[2], opts)}</h${level}>`)
       i++
       continue
     }
@@ -105,7 +154,7 @@ export function renderMarkdown(raw: string): string {
         quoteLines.push(lines[i].slice(2))
         i++
       }
-      output.push(`<blockquote class="md-blockquote">${inlineMarkdown(quoteLines.join('\n'))}</blockquote>`)
+      output.push(`<blockquote class="md-blockquote">${inlineMarkdown(quoteLines.join('\n'), opts)}</blockquote>`)
       continue
     }
 
@@ -138,12 +187,12 @@ export function renderMarkdown(raw: string): string {
         }
 
         const thead = '<thead><tr>' + headerCells.map((c, j) =>
-          `<th style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c)}</th>`
+          `<th style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c, opts)}</th>`
         ).join('') + '</tr></thead>'
 
         const tbody = '<tbody>' + bodyRows.map((row) =>
           '<tr>' + row.map((c, j) =>
-            `<td style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c)}</td>`
+            `<td style="text-align:${aligns[j] ?? 'left'}">${inlineMarkdown(c, opts)}</td>`
           ).join('') + '</tr>'
         ).join('') + '</tbody>'
 
@@ -156,7 +205,7 @@ export function renderMarkdown(raw: string): string {
     if (/^[\-\*\+]\s/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^[\-\*\+]\s/.test(lines[i])) {
-        items.push(`<li>${inlineMarkdown(lines[i].replace(/^[\-\*\+]\s/, ''))}</li>`)
+        items.push(`<li>${inlineMarkdown(lines[i].replace(/^[\-\*\+]\s/, ''), opts)}</li>`)
         i++
       }
       output.push(`<ul class="md-ul">${items.join('')}</ul>`)
@@ -167,7 +216,7 @@ export function renderMarkdown(raw: string): string {
     if (/^\d+\.\s/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-        items.push(`<li>${inlineMarkdown(lines[i].replace(/^\d+\.\s/, ''))}</li>`)
+        items.push(`<li>${inlineMarkdown(lines[i].replace(/^\d+\.\s/, ''), opts)}</li>`)
         i++
       }
       output.push(`<ol class="md-ol">${items.join('')}</ol>`)
@@ -182,7 +231,7 @@ export function renderMarkdown(raw: string): string {
     }
 
     // Regular paragraph
-    output.push(`<p class="md-p">${inlineMarkdown(line)}</p>`)
+    output.push(`<p class="md-p">${inlineMarkdown(line, opts)}</p>`)
     i++
   }
 

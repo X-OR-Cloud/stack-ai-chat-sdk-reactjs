@@ -96,6 +96,10 @@ StackAIChat.init({
   // Default: true
   showReferences: false,
 
+  // ── Links ──────────────────────────────────────────────
+  // Show a short label instead of a bare URL in agent answers (null = keep URL).
+  formatLinkLabel: (url) => url.includes('dichvucong.gov.vn') ? 'Xem thủ tục' : null,
+
   // ── Streaming ──────────────────────────────────────────
   // Reveal pace of streamed answers, in words per second.
   // Default: 10. Set 0 to paint each chunk as it arrives.
@@ -218,6 +222,7 @@ Unmount the widget and clean up all resources.
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
 | `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
+| `formatLinkLabel` | `(url: string) => string \| null` | — | Replace bare URLs in agent answers with a short label. See [Links](#links) |
 | `streaming` | `StreamingConfig` | — | `{ wordsPerSecond }` — reveal pace of streamed answers, `0` = off. See [Streaming](#streaming). Default: `10` |
 | `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
@@ -376,6 +381,30 @@ The SDK speeds up on its own when it falls behind the server and finishes reveal
 remainder before swapping in the final message, so `wordsPerSecond` is the pace you see when
 the server is not the bottleneck. It can be changed at runtime with
 `StackAIChat.updateConfig({ streaming: { wordsPerSecond: 20 } })`.
+
+## Links
+
+Agent answers are rendered from markdown. `[label](url)` links keep their label; bare URLs,
+`www.` addresses, plain domains (`abc.gov.vn`, `x-or.cloud`) and e-mails are auto-linked, with
+trailing sentence punctuation left outside the link. Only `http(s):`, `mailto:` and `tel:` hrefs
+are allowed; anything else stays plain text.
+
+A bare URL is shown verbatim by default. When the agent writes long URLs inline
+(`…tham khảo tại https://ndc.dichvucong.gov.vn/thu-tuc-hanh-chinh/019d2bf7-….`), give it a
+readable label instead:
+
+```ts
+StackAIChat.init({
+  // ...
+  formatLinkLabel: (url) => {
+    if (url.includes('dichvucong.gov.vn')) return 'Xem thủ tục'
+    return null   // keep the raw URL
+  },
+})
+```
+
+Renders as “…tham khảo tại **Xem thủ tục**.” — the full URL stays in `href`. Labelled links get
+the `md-link--labeled` class for styling via `customStyles`.
 
 ## Voting & Copy
 
