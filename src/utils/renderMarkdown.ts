@@ -214,19 +214,24 @@ export function renderMarkdown(raw: string, opts: RenderMarkdownOptions = {}): s
 
     // Ordered list 1. 2.
     if (/^\d+\.\s/.test(line)) {
+      // Keep the author's numbering: LLM output often splits "1." "2." "3." into separate
+      // lists (blank lines / nested bullets between them) and the browser would restart at 1
+      const start = parseInt(line, 10)
       const items: string[] = []
       while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
         items.push(`<li>${inlineMarkdown(lines[i].replace(/^\d+\.\s/, ''), opts)}</li>`)
         i++
       }
-      output.push(`<ol class="md-ol">${items.join('')}</ol>`)
+      const startAttr = start > 1 ? ` start="${start}"` : ''
+      output.push(`<ol class="md-ol"${startAttr}>${items.join('')}</ol>`)
       continue
     }
 
-    // Empty line → paragraph break
+    // Blank line(s) → one small paragraph gap. LLM output often separates blocks with
+    // 2-3 blank lines; one <br /> per line produced a full line-height of white space each.
     if (line.trim() === '') {
-      output.push('<br />')
-      i++
+      while (i < lines.length && lines[i].trim() === '') i++
+      if (output.length > 0 && i < lines.length) output.push('<div class="md-gap"></div>')
       continue
     }
 
