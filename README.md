@@ -98,7 +98,7 @@ StackAIChat.init({
 
   // ── Links ──────────────────────────────────────────────
   // Show a short label instead of a bare URL in agent answers (null = keep URL).
-  formatLinkLabel: (url) => url.includes('dichvucong.gov.vn') ? 'Xem thủ tục' : null,
+  formatLinkLabel: (url) => '[Replace]',
 
   // ── Streaming ──────────────────────────────────────────
   // Reveal pace of streamed answers, in words per second.

@@ -8,6 +8,12 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 >
 > Lịch sử trước ngày hôm nay **không được ghi lại hồi tố** ở đây — không phải mọi bản cũ đều có git tag tương ứng (`0.3.0, 0.4.0, 0.8.0, 0.9.0, 0.10.x, 0.11.0, 0.12.0` không có tag), nên viết lại chi tiết từng bản sẽ phải suy đoán một phần. Ai cần lịch sử đầy đủ, tra `git log --oneline` trực tiếp trong repo — đó là nguồn chính xác, tài liệu này không lặp lại để tránh lệch.
 
+## [0.15.1] - 2026-09-16
+
+### Fixed
+- **Khoảng trắng quá lớn giữa các đoạn** trong câu trả lời của agent. Renderer cũ đổi *mỗi* dòng trống thành một `<br />`; LLM thường xuống 2–3 dòng giữa các mục nên mỗi chỗ cách đoạn cao 2–3 line-height, cộng thêm flex `gap` của `.md-body` ở hai bên. Giờ mọi chuỗi dòng trống gộp thành một spacer `.md-gap` cao 0 — khoảng cách đoạn = 2× flex gap (12px), khoảng cách dòng thường vẫn 6px.
+- **Danh sách đánh số lặp "1. 1. 1."** — agent hay chèn bullet con giữa các mục nên mỗi mục thành một `<ol>` riêng và trình duyệt đánh số lại. Giờ giữ số gốc của markdown qua `<ol start="n">`.
+
 ## [0.15.0] - 2026-09-15
 
 Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** — chờ test với backend thật trước khi chạy `npm run release:patch`.
@@ -100,4 +106,4 @@ Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (
 
 ## Trước khi có CHANGELOG
 
-15 bản đã publish: `0.1.0` (2026-03-12, bản đầu tiên) → `0.13.0` (2026-07-05, bản hiện tại mới nhất). Chi tiết: `git log --oneline` hoặc `npm view @xorcloud/stack-ai-chat-sdk time --json`.
+15 bản đã publish: `0.1.0` (2026-03-12, bản đầu tiên) → `0.15.0` (2026-07-05, bản hiện tại mới nhất). Chi tiết: `git log --oneline` hoặc `npm view @xorcloud/stack-ai-chat-sdk time --json`.

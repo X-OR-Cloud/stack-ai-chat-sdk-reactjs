@@ -360,6 +360,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 /* ── Markdown body (agent messages) ────────────────────────────────────── */
 .md-body { display: flex; flex-direction: column; gap: 6px; }
 .md-body .md-p { margin: 0; }
+.md-body .md-gap { height: 0; } /* .md-body flex gap on both sides = 2x normal line spacing */
 .md-body .md-h1, .md-body .md-h2, .md-body .md-h3,
 .md-body .md-h4, .md-body .md-h5, .md-body .md-h6 { margin: 4px 0 2px; font-weight: 700; line-height: 1.3; }
 .md-body .md-h1 { font-size: 1.2em; }
