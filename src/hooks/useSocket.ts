@@ -10,6 +10,7 @@ import {
   registerToggleReaction, unregisterToggleReaction,
 } from '../sendMessageBridge'
 import { redactValue, truncateForDisplay } from '../utils/redact'
+import { telemetry } from '../services/telemetry'
 import type {
   Message,
   MessageSource,
@@ -29,7 +30,7 @@ let lastAssistantMessageAt = 0
 const INTERNAL_TYPES = ['thinking', 'tool_use', 'tool_result']
 // Luôn hiển thị bất kể visibleMessageTypes: guardrail block / agent sleep / lỗi
 // đến dưới dạng system|error — ẩn chúng đi thì user gửi tin mà không thấy phản hồi gì.
-const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error']
+const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error', 'news']
 
 // wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
 // wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
@@ -224,6 +225,19 @@ export function useSocket() {
       sources: [],
       timestamp: new Date().toISOString(),
     })
+
+    // News cards — inject right after greeting, same session guard
+    if (config.news?.length) {
+      addMessage({
+        localId: `news_${Date.now()}`,
+        role: 'assistant',
+        content: JSON.stringify(config.news),
+        type: 'news',
+        status: 'sent',
+        attachments: [],
+        sources: [],
+      })
+    }
   }, [config, addMessage])
 
   const loadHistory = useCallback((socket: Socket, convId: string, before?: string) => {
@@ -329,7 +343,11 @@ export function useSocket() {
   // bất kỳ chuỗi nào đến từ hạ tầng mạng (message/detail) là an toàn để in nguyên văn.
   // Cắt bớt string quá dài để hiển thị gọn trong console — LUÔN chạy SAU redactToken(),
   // không bao giờ trước (xem lý do ở comment trong connect_error handler).
-  const reportError = useCallback((message: string, detail?: Record<string, unknown>) => {
+  const reportError = useCallback((
+    message: string,
+    detail?: Record<string, unknown>,
+    tele?: { stage?: string; level?: 'warn' | 'error' | 'fatal'; errorType?: string },
+  ) => {
     const currentToken = tokenRef.current ?? config?.token
     const safeMessage = truncateForDisplay(redactToken(message, currentToken)) as string
     const safeDetail = detail
@@ -340,6 +358,15 @@ export function useSocket() {
     } else {
       console.error('[SDKChat]', safeMessage, safeDetail ?? '')
     }
+
+    // Push telemetry (fire-and-forget, never blocks)
+    telemetry.push({
+      level: tele?.level ?? 'error',
+      errorType: tele?.errorType ?? 'SDKError',
+      message,
+      stackTrace: detail ? JSON.stringify(detail) : undefined,
+      stage: tele?.stage ?? 'runtime',
+    })
   }, [config])
 
   const connect = useCallback(() => {
@@ -413,7 +440,7 @@ export function useSocket() {
             loadHistory(socket, res.conversationId)
           }
         } else if (res && !res.success && res.error) {
-          reportError(res.error)
+          reportError(res.error, undefined, { stage: 'conversation-join', errorType: 'JoinError' })
         }
         setPhase('chat')
       }
@@ -440,7 +467,7 @@ export function useSocket() {
       // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
       // Nếu là intentional disconnect (destroy/close) thì bỏ qua
       if (!isIntentionalDisconnectRef.current) {
-        reportError(`Disconnected: ${reason}`)
+        reportError(`Disconnected: ${reason}`, undefined, { stage: 'ws-disconnect', level: 'warn', errorType: 'DisconnectError' })
         // Nếu server cắt kỳ do idle hoặc network, set phase connecting
         // để UI show spinner thay vì để người dùng gõ vào void
         setPhase('connecting')
@@ -471,7 +498,7 @@ export function useSocket() {
       if (e.context?.responseText) detail.httpResponse  = e.context.responseText
       if (e.data !== undefined)    detail.serverData    = e.data
 
-      reportError(e.message, detail)
+      reportError(e.message, detail, { stage: 'ws-handshake', errorType: 'ConnectionError' })
     })
 
     // Manager-level event: Socket.IO hết lượt retry → socket.active không tự về false
@@ -479,7 +506,7 @@ export function useSocket() {
     socket.io.on('reconnect_failed', () => {
       isConnectingRef.current = false
       setPhase('form')
-      reportError('Không thể kết nối lại sau nhiều lần thử. Vui lòng thử lại.')
+      reportError('Không thể kết nối lại sau nhiều lần thử. Vui lòng thử lại.', undefined, { stage: 'ws-reconnect', level: 'fatal', errorType: 'ReconnectError' })
     })
 
     // Token refresh tại reconnect_attempt (ops-portal: useChatSocket.ts:311-317)
@@ -492,6 +519,7 @@ export function useSocket() {
         if (newToken && newToken !== tokenRef.current) {
           tokenRef.current = newToken
           rememberToken(newToken)
+          telemetry.setToken(newToken)
           socket.auth = { token: newToken }
           // Cập nhật query token cho handshake polling tiếp theo
           const opts = socket.io.opts as Record<string, unknown> & { query?: Record<string, unknown> }
@@ -530,13 +558,14 @@ export function useSocket() {
         }
 
         setConversationId(payload.conversationId)
+        telemetry.setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
       }
     })
 
     socket.on('message:error', (payload: { error: string }) => {
-      reportError(payload.error)
+      reportError(payload.error, undefined, { stage: 'message', errorType: 'MessageError' })
       setWaitingForAgent(false)
     })
 
@@ -744,7 +773,7 @@ export function useSocket() {
       } else {
         failMessage(localId)
       }
-      if (res?.error) reportError(res.error)
+      if (res?.error) reportError(res.error, undefined, { stage: 'message-send', errorType: 'SendError' })
     })
 
     // Timeout: mark failed nếu 10s không nhận ack (zombie socket / server im lặng).
