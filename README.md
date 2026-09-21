@@ -38,6 +38,9 @@ StackAIChat.init({
   token: '<jwt-token>',
   conversationId: '<conversation-id>',  // optional — omit for anonymous flow
 
+  // ── Telemetry ───────────────────────────────────────────
+  apiUrl: 'https://xsai-api.x-or.cloud/aiwm',  // enables error telemetry
+
   // ── Pre-chat Form Fields ───────────────────────────────
   fields: [
     { name: 'fullName', label: 'Full Name',    type: 'text', required: true  },
@@ -91,6 +94,13 @@ StackAIChat.init({
   // Not shown when resuming an existing conversation.
   greeting: 'Hello! How can I help you today?',
 
+  // ── News Articles ──────────────────────────────────────
+  // Cards displayed in chat right after the greeting message.
+  news: [
+    { title: 'Getting started guide', image: 'https://example.com/banner.jpg', description: 'Learn how to use our service.', url: 'https://example.com/guide' },
+    { title: 'Office hours update', url: 'https://example.com/hours' },
+  ],
+
   // ── References ─────────────────────────────────────────
   // Show or hide reference documents attached to agent responses.
   // Default: true
@@ -129,6 +139,8 @@ StackAIChat.init({
   onError:              (msg) => console.error('Error:', msg),
   onFormSubmit:         (data) => console.log('Form submitted', data),
   onMessage:            (msg) => console.log('New message', msg),
+  onGuardrailBlock:     (info) => console.warn('Guardrail blocked', info),
+  onPiiRedacted:        (info) => console.log('PII redacted', info),
 })
 ```
 
@@ -208,6 +220,8 @@ Unmount the widget and clean up all resources.
 | `conversationId` | `string` | — | Resume a specific conversation. Omit for anonymous flow. |
 | `agentId` | `string` | — | Authenticated-user flow: emits `agent:connect` so the server find-or-creates the conversation. Anonymous tokens do not need it. |
 | `socketPath` | `string` | — | Socket.IO handshake path. Derived from `wsUrl` when omitted. |
+| `apiUrl` | `string` | — | AIWM API base URL for client error telemetry. Enables telemetry when provided. |
+| `telemetry` | `boolean` | — | Enable/disable client error telemetry. Default: `true`. Set `false` to explicitly disable. |
 | `fields` | `FieldConfig[]` | — | Pre-chat form fields |
 | `session` | `SessionConfig` | — | Form session persistence |
 | `attachments` | `AttachmentsConfig` | — | File attachment settings |
@@ -218,6 +232,7 @@ Unmount the widget and clean up all resources.
 | `visibleMessageTypes` | `MessageType[]` | — | Action types to display. Default: `['message']` |
 | `hiddenPatterns` | `RegExp[]` | — | Regex patterns to filter out messages by content |
 | `greeting` | `string` | — | Welcome message shown when a fresh conversation starts (no history). Omit to disable. |
+| `news` | `NewsItem[]` | — | News article cards displayed after greeting. See [News Articles](#news-articles). |
 | `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
@@ -237,6 +252,8 @@ Unmount the widget and clean up all resources.
 | `onRawMessage` | `(payload: Record<string, unknown>) => void` | — | Debug: raw WebSocket payload before filtering |
 | `onFormSubmit` | `(data: Record<string, string>) => void` | — | Called when pre-chat form is submitted |
 | `onVote` | `(event: VoteEvent) => void` | — | Called once the server confirms a vote |
+| `onGuardrailBlock` | `(info: { error?: string }) => void` | — | Called when guardrail rejects a user message |
+| `onPiiRedacted` | `(info: { originalContent: string; redactedContent: string }) => void` | — | Called when server redacts PII from a user message |
 
 ---
 
@@ -358,8 +375,41 @@ The server determines the flow based on your JWT `type` claim:
 - **Copy answer** — one-click copy of the raw markdown an agent wrote; always available
 - **Reference documents** — agent responses with attached sources/citations rendered as interactive chips with detail modal; toggle via `showReferences`
 - **Custom styles** — per-component CSS overrides injected into Shadow DOM
+- **Client telemetry** — automatic error reporting to AIWM server; fire-and-forget, rate-limited, opt-out via `telemetry: false`
 - **Version exposure** — `StackAIChat.version` readable by consumer apps; logged to console on init
 - **TypeScript** — full type definitions included
+
+---
+
+## Telemetry
+
+When `apiUrl` is provided, the SDK automatically sends structured error logs to the AIWM server via `POST /client-telemetries/push`. This helps track client-side errors without additional setup.
+
+```ts
+StackAIChat.init({
+  wsUrl: 'wss://xsai-ws.x-or.cloud/chat',
+  apiUrl: 'https://xsai-api.x-or.cloud/aiwm',  // ← enables telemetry
+  token: '...',
+})
+```
+
+**What gets reported:**
+
+| Error | Stage | Level |
+|-------|-------|-------|
+| Socket.IO connect failure | `ws-handshake` | `error` |
+| Unexpected disconnect | `ws-disconnect` | `warn` |
+| All retries exhausted | `ws-reconnect` | `fatal` |
+| Server message error | `message` | `error` |
+| Message send failure | `message-send` | `error` |
+| Conversation join failure | `conversation-join` | `error` |
+
+**Behavior:**
+- **Fire-and-forget** — never blocks UI, never throws
+- **Rate-limited** — max 10 reports per minute (matches server-side limit)
+- **Auto-disabled** — no `apiUrl` = no telemetry, zero overhead
+- **Opt-out** — `telemetry: false` to explicitly disable
+- **Auth** — uses the same anonymous token as the WebSocket connection
 
 ---
 

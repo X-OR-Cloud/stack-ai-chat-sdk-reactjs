@@ -71,6 +71,7 @@ export function DemoApp() {
   // ── Connection ──────────────────────────────────────────────────────────────
   const [wsUrl, setWsUrl]           = useState(DEFAULT_WS_URL)
   const [socketPath, setSocketPath] = useState('')
+  const [apiUrl, setApiUrl]         = useState('https://xsai-api.x-or.cloud/aiwm')
   const [token, setToken]           = useState('')
 
   // ── Widget UI ───────────────────────────────────────────────────────────────
@@ -226,6 +227,7 @@ export function DemoApp() {
   const sdkConfig: Partial<SDKConfig> = {
     wsUrl,
     token,
+    ...(apiUrl.trim() ? { apiUrl: apiUrl.trim() } : {}),
     ...(socketPath.trim() ? { socketPath: socketPath.trim() } : {}),
     title,
     subtitle,
@@ -397,6 +399,9 @@ export function DemoApp() {
 
             <label className="demo-label">Socket Path <span className="demo-hint">(tuỳ chọn, mặc định /socket.io)</span></label>
             <input className="demo-input" value={socketPath} onChange={(e) => setSocketPath(e.target.value)} placeholder="/socket.io" />
+
+            <label className="demo-label">API URL <span className="demo-hint">(telemetry)</span></label>
+            <input className="demo-input" value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} placeholder="https://xsai-api.x-or.cloud/aiwm" />
 
             <label className="demo-label">Token <span className="demo-required">*</span></label>
             <input className="demo-input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token" />

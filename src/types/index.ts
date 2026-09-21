@@ -90,6 +90,18 @@ export interface SDKConfig {
    */
   socketPath?: string
 
+  /**
+   * AIWM API base URL for client error telemetry (e.g. 'https://xsai-api.x-or.cloud/aiwm').
+   * When provided, SDK automatically sends structured error logs to the server.
+   * When omitted, telemetry is disabled.
+   */
+  apiUrl?: string
+  /**
+   * Enable/disable client error telemetry. Default: true.
+   * Set to false to explicitly disable even when apiUrl is provided.
+   */
+  telemetry?: boolean
+
 
   // Pre-chat form
   fields?: FieldConfig[]
