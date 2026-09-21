@@ -313,6 +313,12 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .notice-banner--error { background-color: color-mix(in srgb, var(--sai-error) 10%, transparent); border-color: color-mix(in srgb, var(--sai-error) 40%, transparent); }
 .notice-banner--error .notice-banner__content { color: var(--sai-error); }
 
+/* ── Guardrail rejection notice (centered muted text) ────────────────────── */
+.guardrail-notice { width: 100%; display: flex; justify-content: center; align-items: center; font-size: 12px; color: var(--sai-text-muted); padding: 4px 0; text-align: center; animation: sai-fade-in 200ms ease; }
+
+/* ── Guardrail-blocked user bubble (distinct from network-failed red) ────── */
+.message-row.user .message-bubble.guardrail-blocked { background-color: color-mix(in srgb, var(--sai-text-muted) 20%, var(--sai-bubble-user-bg)); opacity: 0.75; }
+
 /* ── Load older history ─────────────────────────────────────────────────── */
 .load-older-btn {
   align-self: center; padding: 5px 14px;

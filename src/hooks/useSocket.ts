@@ -70,6 +70,8 @@ interface ServerMessage {
   isFinal?: boolean
   attachments?: Message['attachments']
   sources?: MessageSource[]
+  /** Server-side metadata (PII redaction, etc.) */
+  metadata?: { piiRedacted?: boolean }
   /** Reactions embedded in conversation:history. The docs describe this in two places
    *  with two different shapes — read both, see extractReaction(). */
   reactions?: unknown
@@ -150,6 +152,7 @@ function mapServerMessage(payload: ServerMessage): Message {
     attachments: payload.attachments ?? [],
     sources: payload.sources ?? [],
     timestamp: payload.createdAt ?? payload.timestamp,
+    metadata: payload.metadata,
     ...extractReaction(payload),
   }
 }
@@ -198,6 +201,7 @@ export function useSocket() {
   const setStreaming = useChatStore((s) => s.setStreaming)
   const setHistoryHasMore = useChatStore((s) => s.setHistoryHasMore)
   const setLoadingHistory = useChatStore((s) => s.setLoadingHistory)
+  const reconcileMessage = useChatStore((s) => s.reconcileMessage)
 
   // Giữ token mới nhất — updateToken() ghi đè trực tiếp, config.token là giá trị khởi tạo
   useEffect(() => {
@@ -645,19 +649,40 @@ export function useSocket() {
         let target = messages.find(
           (m) => m.localId?.startsWith('local_') && m.status === 'sending' && m.content === incomingText
         )
-        // Fallback: oldest pending temp message (server mutated content)
+        // Fallback: oldest pending temp message (server mutated content, e.g. PII redaction).
+        // Khi có metadata.piiRedacted → chắc chắn server đã sửa content.
+        // Khi không có flag → vẫn fallback (backward-compat với server cũ không gửi metadata).
         if (!target) {
           target = messages.find(
             (m) => m.localId?.startsWith('local_') && m.status === 'sending'
           )
         }
         if (target?.localId) {
-          confirmMessage(target.localId, id ?? '', payload.createdAt ?? payload.timestamp ?? new Date().toISOString())
+          const contentChanged = target.content !== incomingText
+          if (contentChanged) {
+            // Content bị sửa (PII redact hoặc server moderation) → reconcile toàn bộ
+            reconcileMessage(target.localId, {
+              messageId: id,
+              content: incomingText,
+              timestamp: payload.createdAt ?? payload.timestamp ?? new Date().toISOString(),
+              metadata: payload.metadata,
+            })
+            // Chỉ gọi callback khi server xác nhận qua piiRedacted flag
+            if (payload.metadata?.piiRedacted) {
+              config?.onPiiRedacted?.({
+                originalContent: target.content,
+                redactedContent: incomingText,
+              })
+            }
+          } else {
+            // Content khớp → confirm bình thường
+            confirmMessage(target.localId, id ?? '', payload.createdAt ?? payload.timestamp ?? new Date().toISOString())
+          }
         }
-        // Không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
+        // Không match + không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
       }
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError, reconcileMessage])
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true
@@ -710,9 +735,28 @@ export function useSocket() {
       }
       setWaitingForAgent(false)
       if (res?.guardrailBlocked) {
-        // Guardrail chặn: server broadcast system notice giải thích —
-        // gỡ optimistic message để không hiển thị nội dung bị chặn (doc CWS)
-        useChatStore.getState().removeMessage(localId)
+        // Guardrail chặn: giữ message user (trạng thái failed) để user thấy mình gửi gì.
+        // Đánh dấu guardrailBlocked để UI phân biệt với lỗi mạng (màu khác).
+        // SDK inject thông báo centered ngay bên dưới (không chờ server broadcast).
+        useChatStore.setState((state) => ({
+          messages: state.messages.map((m) =>
+            m.localId === localId
+              ? { ...m, status: 'failed' as const, metadata: { ...m.metadata, guardrailBlocked: true } }
+              : m
+          ),
+        }))
+        addMessage({
+          localId: `guardrail_${Date.now()}`,
+          role: 'assistant',
+          content: res.error || 'Nội dung không hợp lệ',
+          type: 'notice',
+          status: 'sent',
+          attachments: [],
+          sources: [],
+          timestamp: new Date().toISOString(),
+          metadata: { guardrailNotice: true },
+        })
+        config?.onGuardrailBlock?.({ error: res.error })
       } else {
         failMessage(localId)
       }
