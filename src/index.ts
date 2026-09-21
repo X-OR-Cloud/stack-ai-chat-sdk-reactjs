@@ -14,7 +14,7 @@ import { SDK_VERSION } from './version'
 import { telemetry } from './services/telemetry'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageMetadata, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageMetadata, NewsItem, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null

@@ -10,6 +10,18 @@ export interface FieldConfig {
   placeholder?: string
 }
 
+// ─── News articles ───────────────────────────────────────────────────────────
+
+/** News article card shown in chat after greeting */
+export interface NewsItem {
+  title: string
+  /** Banner image URL */
+  image?: string
+  description?: string
+  /** Link opened in new tab when user clicks the card */
+  url: string
+}
+
 // ─── Session ─────────────────────────────────────────────────────────────────
 
 export interface SessionConfig {
@@ -156,6 +168,9 @@ export interface SDKConfig {
 
   // Greeting — message shown immediately after connection, before any user input.
   greeting?: string
+
+  /** News articles displayed as cards in chat after greeting. */
+  news?: NewsItem[]
 
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
@@ -326,7 +341,7 @@ export interface VoteEvent {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
+export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider' | 'news'
 
 /** Server-side metadata attached to echoed messages */
 export interface MessageMetadata {
