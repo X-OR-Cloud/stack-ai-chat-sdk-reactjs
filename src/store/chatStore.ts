@@ -47,6 +47,7 @@ interface ChatState {
   confirmMessage: (localId: string, messageId: string, timestamp: string) => void
   failMessage: (localId: string) => void
   removeMessage: (localId: string) => void
+  reconcileMessage: (localId: string, patch: Partial<Pick<Message, 'messageId' | 'content' | 'timestamp' | 'metadata'>>) => void
   setReaction: (messageId: string, patch: Partial<Pick<Message, 'userReaction' | 'likes' | 'dislikes' | 'votePending'>>) => void
   setAgentTyping: (typing: boolean) => void
   setWaitingForAgent: (waiting: boolean) => void
@@ -124,6 +125,17 @@ export const useChatStore = create<ChatState>()((set) => ({
   removeMessage: (localId) =>
     set((state) => ({
       messages: state.messages.filter((m) => m.localId !== localId),
+    })),
+
+  // Replace content + metadata of an optimistic message with the server version.
+  // Used when server modifies content before echo (PII redaction, moderation edit).
+  reconcileMessage: (localId, patch) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.localId === localId
+          ? { ...m, ...patch, status: 'sent' }
+          : m
+      ),
     })),
 
   // Votes are matched by messageId (the real server id). Greeting and optimistic messages

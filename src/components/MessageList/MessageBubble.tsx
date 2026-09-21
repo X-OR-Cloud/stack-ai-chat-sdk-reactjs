@@ -69,6 +69,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   // notice / system / error → inline banner, no timestamp
   if (message.type === 'notice' || message.type === 'system' || message.type === 'error') {
+    // Guardrail rejection notice — centered muted text (SDK-injected)
+    if (message.metadata?.guardrailNotice) {
+      return (
+        <div className="guardrail-notice" role="alert">
+          {message.content}
+        </div>
+      )
+    }
     return (
       <div className="message-row assistant">
         <NoticeBanner message={message} />
@@ -94,7 +102,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   if (isUser) {
     return (
       <div className="message-row user" >
-        <div className={`message-bubble status-${message.status}`}>
+        <div className={`message-bubble status-${message.status}${message.metadata?.guardrailBlocked ? ' guardrail-blocked' : ''}`}>
           {message.content}
           {message.attachments.length > 0 && (
             <div className="message-attachments">

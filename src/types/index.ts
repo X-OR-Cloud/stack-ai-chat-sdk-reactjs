@@ -180,6 +180,11 @@ export interface SDKConfig {
   /** Called once the server confirms the vote */
   onVote?: (event: VoteEvent) => void
   onPresenceUpdate?: (payload: PresenceUpdatePayload) => void
+  /** Called when a guardrail blocks the user's message (reject action).
+   *  The user's message is kept in UI with failed status; server notice follows. */
+  onGuardrailBlock?: (info: { error?: string }) => void
+  /** Called when server redacts PII in the user's message before echo */
+  onPiiRedacted?: (info: { originalContent: string; redactedContent: string }) => void
 }
 
 // ─── Socket.IO payloads ──────────────────────────────────────────────────────
@@ -311,6 +316,16 @@ export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
 export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
 
+/** Server-side metadata attached to echoed messages */
+export interface MessageMetadata {
+  /** true when server has redacted PII from the message content */
+  piiRedacted?: boolean
+  /** SDK-injected: true for guardrail rejection notices shown inline */
+  guardrailNotice?: boolean
+  /** SDK-injected: true when this user message was blocked by a guardrail */
+  guardrailBlocked?: boolean
+}
+
 export interface Message {
   /** Local temp id before server confirms */
   localId?: string
@@ -330,6 +345,8 @@ export interface Message {
   dislikes?: number
   /** Waiting for the server to confirm — locks the buttons against double submits */
   votePending?: boolean
+  /** Server-side metadata (PII redaction flag, etc.) */
+  metadata?: MessageMetadata
 }
 
 /** Structured reference attached to an outgoing message (doc: message:send.references) */

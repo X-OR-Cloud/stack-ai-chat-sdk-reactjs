@@ -8,6 +8,15 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 >
 > Lịch sử trước ngày hôm nay **không được ghi lại hồi tố** ở đây — không phải mọi bản cũ đều có git tag tương ứng (`0.3.0, 0.4.0, 0.8.0, 0.9.0, 0.10.x, 0.11.0, 0.12.0` không có tag), nên viết lại chi tiết từng bản sẽ phải suy đoán một phần. Ai cần lịch sử đầy đủ, tra `git log --oneline` trực tiếp trong repo — đó là nguồn chính xác, tài liệu này không lặp lại để tránh lệch.
 
+## [0.15.2] - 2026-09-21
+
+### Added
+- **Guardrail Reject — giữ message user + thông báo inline.** Khi server trả `guardrailBlocked: true`, message user giữ nguyên (trạng thái failed ✗, bubble mờ đi thay vì đỏ như lỗi mạng) và SDK inject dòng thông báo centered bên dưới (text từ `res.error` hoặc default "Nội dung không hợp lệ"). Trước đây message bị xoá hẳn (`removeMessage`).
+- **PII Redact Reconciliation — update content in-place.** Khi server redact PII trong tin nhắn user trước khi echo (VD: `"SĐT 0901234567"` → `"SĐT [PHONE_REDACTED]"`), SDK dùng `reconcileMessage` để thay content ngay trên bubble đang hiển thị. Trước đây `confirmMessage` chỉ update ID/timestamp/status, giữ nguyên content gốc (chưa redact).
+- **`config.onGuardrailBlock`** callback — gọi khi guardrail reject message, trả `{ error?: string }`.
+- **`config.onPiiRedacted`** callback — gọi khi server redact PII, trả `{ originalContent, redactedContent }`. Chỉ fire khi server gửi `metadata.piiRedacted: true`.
+- **`MessageMetadata`** type export — `piiRedacted`, `guardrailBlocked`, `guardrailNotice` flags trên `Message.metadata`.
+
 ## [0.15.1] - 2026-09-16
 
 ### Fixed
