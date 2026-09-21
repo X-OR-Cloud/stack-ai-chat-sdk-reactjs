@@ -3,6 +3,7 @@ import { renderMarkdown } from '../../utils/renderMarkdown'
 import { SourcesPanel } from './SourcesPanel'
 import { CollapsibleBlock } from './CollapsibleBlock'
 import { NoticeBanner } from './NoticeBanner'
+import { NewsCards } from './NewsCards'
 import { VoteButtons } from './VoteButtons'
 import { CopyButton } from './CopyButton'
 import { useChatStore } from '../../store/chatStore'
@@ -63,6 +64,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     return (
       <div className="session-divider" role="separator">
         <span className="session-divider__label">Cuộc trò chuyện mới</span>
+      </div>
+    )
+  }
+
+  // news cards — articles injected after greeting
+  if (message.type === 'news') {
+    return (
+      <div className="message-row assistant">
+        <NewsCards message={message} />
       </div>
     )
   }

@@ -306,6 +306,19 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .session-divider::before, .session-divider::after { content: ''; flex: 1; height: 1px; background-color: var(--sai-border); }
 .session-divider__label { font-size: 11px; color: var(--sai-text-muted); white-space: nowrap; padding: 0 4px; }
 
+/* ── News cards ─────────────────────────────────────────────────────────── */
+.news-cards { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; width: 100%; }
+.news-cards::-webkit-scrollbar { height: 3px; }
+.news-cards::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 3px; }
+.news-card { flex: 0 0 200px; scroll-snap-align: start; border: 1px solid var(--sai-border); border-radius: var(--sai-radius-sm); overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow var(--sai-transition), border-color var(--sai-transition); cursor: pointer; background: var(--sai-bg); }
+.news-card:hover { border-color: var(--sai-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.news-card__image { width: 100%; aspect-ratio: 16/9; overflow: hidden; background: var(--sai-border); }
+.news-card__image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.news-card__body { padding: 8px 10px; }
+.news-card__title { font-size: 13px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--sai-text); }
+.news-card__desc { font-size: 12px; color: var(--sai-text-muted); line-height: 1.4; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-card:only-child { flex: 1 1 100%; }
+
 /* ── Notice banner ──────────────────────────────────────────────────────── */
 .notice-banner { width: 100%; display: flex; align-items: flex-start; gap: 7px; padding: 8px 12px; background-color: var(--sai-notice-bg); border: 1px solid var(--sai-notice-border); border-radius: var(--sai-radius-sm); }
 .notice-banner__icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }

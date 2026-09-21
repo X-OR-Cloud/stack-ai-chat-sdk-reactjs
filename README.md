@@ -91,6 +91,22 @@ StackAIChat.init({
   // Not shown when resuming an existing conversation.
   greeting: 'Hello! How can I help you today?',
 
+  // ── News Articles ──────────────────────────────────────
+  // Cards displayed in chat right after the greeting message.
+  // Each card has a title, optional banner image, description, and a link.
+  news: [
+    {
+      title: 'How to apply for ID card online',
+      image: 'https://example.com/images/id-card.jpg',
+      description: 'Step-by-step guide for online ID card registration.',
+      url: 'https://example.com/id-card-guide',
+    },
+    {
+      title: 'Office hours update',
+      url: 'https://example.com/office-hours',
+    },
+  ],
+
   // ── References ─────────────────────────────────────────
   // Show or hide reference documents attached to agent responses.
   // Default: true
@@ -218,6 +234,7 @@ Unmount the widget and clean up all resources.
 | `visibleMessageTypes` | `MessageType[]` | — | Action types to display. Default: `['message']` |
 | `hiddenPatterns` | `RegExp[]` | — | Regex patterns to filter out messages by content |
 | `greeting` | `string` | — | Welcome message shown when a fresh conversation starts (no history). Omit to disable. |
+| `news` | `NewsItem[]` | — | News article cards displayed after greeting. See [News Articles](#news-articles). |
 | `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
 | `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
@@ -280,6 +297,54 @@ StackAIChat.init({
 ```
 
 Patterns are applied to both **message history** and **real-time messages**. Messages matching any pattern are silently dropped from the UI (but still delivered to `onRawMessage` if set).
+
+---
+
+## News Articles
+
+Display news or announcement cards in the chat right after the greeting message. Cards are shown once per session (not repeated on reconnect).
+
+```ts
+StackAIChat.init({
+  wsUrl: '...',
+  token: '...',
+  greeting: 'Hello! How can I help you?',
+  news: [
+    {
+      title: 'How to apply for ID card online',
+      image: 'https://example.com/images/id-card.jpg',
+      description: 'Step-by-step guide for online registration.',
+      url: 'https://example.com/id-card-guide',
+    },
+    {
+      title: 'Office hours update',
+      url: 'https://example.com/office-hours',
+    },
+  ],
+})
+```
+
+**`NewsItem` fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | `string` | ✓ | Card title (max 2 lines, clipped) |
+| `url` | `string` | ✓ | Link opened in a new tab when user clicks the card |
+| `image` | `string` | — | Banner image URL (rendered at 16:9 aspect ratio, `object-fit: cover`) |
+| `description` | `string` | — | Short description below title (max 2 lines, clipped) |
+
+**Behavior:**
+- **1 card** → renders full-width
+- **2+ cards** → horizontal scrollable row
+- **No `news` or empty array** → nothing displayed
+- Cards are only shown on **fresh conversations** (same guard as `greeting`)
+- News data can come from any source — hardcoded, fetched from API, or injected from CMS
+
+**Fetching from API:**
+```ts
+const news = await fetch('/api/news').then(r => r.json())
+StackAIChat.init({ wsUrl, token, greeting, news })
+```
 
 ---
 
@@ -346,6 +411,7 @@ The server determines the flow based on your JWT `type` claim:
 - **Markdown rendering** — agent messages rendered full-width without bubble; supports bold, italic, code blocks, lists, blockquotes, links, tables
 - **Claude-style message UI** — agent messages full-width no-bubble; `thinking`/`tool_use`/`tool_result` as collapsible pills; `notice`/`system` as inline banners
 - **Greeting message** — configurable welcome message on fresh conversations; skipped when resuming history
+- **News articles** — configurable news cards shown after greeting; banner image, title, description, click-to-open link; scrollable row for multiple cards
 - **Session divider** — visual separator between history and new session when resuming a conversation
 - **File attachments** — image preview + file chips, configurable limits
 - **Reference/quote injection** — inject quoted text into the input via `setReference()`, useful for "reply to selection"

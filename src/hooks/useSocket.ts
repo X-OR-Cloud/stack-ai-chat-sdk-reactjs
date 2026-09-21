@@ -29,7 +29,7 @@ let lastAssistantMessageAt = 0
 const INTERNAL_TYPES = ['thinking', 'tool_use', 'tool_result']
 // Luôn hiển thị bất kể visibleMessageTypes: guardrail block / agent sleep / lỗi
 // đến dưới dạng system|error — ẩn chúng đi thì user gửi tin mà không thấy phản hồi gì.
-const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error']
+const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error', 'news']
 
 // wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
 // wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
@@ -220,6 +220,19 @@ export function useSocket() {
       sources: [],
       timestamp: new Date().toISOString(),
     })
+
+    // News cards — inject right after greeting, same session guard
+    if (config.news?.length) {
+      addMessage({
+        localId: `news_${Date.now()}`,
+        role: 'assistant',
+        content: JSON.stringify(config.news),
+        type: 'news',
+        status: 'sent',
+        attachments: [],
+        sources: [],
+      })
+    }
   }, [config, addMessage])
 
   const loadHistory = useCallback((socket: Socket, convId: string, before?: string) => {
