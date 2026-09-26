@@ -231,13 +231,23 @@ export type VoteAction = 'created' | 'updated' | 'removed'
 export interface VotingConfig {
   /** Show vote buttons under agent answers. Default: false (opt-in) */
   enabled?: boolean
+  /**
+   * Ask for a reason before sending a dislike: clicking 👎 opens a textbox and the
+   * `reaction:toggle` event is only emitted once the user presses "Gửi". Default: true
+   */
+  dislikeReason?: boolean
 }
+
+/** Hard cap on the dislike reason length */
+export const MAX_VOTE_REASON_LENGTH = 500
 
 /** Payload emitted to the server as `reaction:toggle` */
 export interface ReactionTogglePayload {
   conversationId: string
   actionId: string
   type: VoteType
+  /** Free-text reason the user gave — only sent with a dislike, omitted when empty */
+  reason?: string
 }
 
 /** ACK returned for `reaction:toggle` */
@@ -279,6 +289,8 @@ export interface VoteEvent {
   action: VoteAction
   likes?: number
   dislikes?: number
+  /** Reason the user typed for a dislike, if any */
+  reason?: string
 }
 
 // ─── Messages ────────────────────────────────────────────────────────────────

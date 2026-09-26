@@ -138,9 +138,10 @@ export const StackAIChat = {
    * The server toggles: sending the type that is already set removes the vote.
    * Goes over the WS `reaction:toggle` event.
    * Only runs when `config.voting.enabled` is set and the socket is connected.
+   * `reason` is only sent with a dislike (trimmed, max 500 chars).
    */
-  vote(actionId: string, type: VoteType): void {
-    bridgeVote(actionId, type)
+  vote(actionId: string, type: VoteType, reason?: string): void {
+    bridgeVote(actionId, type, reason)
   },
 
   /** Refresh JWT (e.g. sau khi IAM cấp accessToken mới) — reconnect với token mới */

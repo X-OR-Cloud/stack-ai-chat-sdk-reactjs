@@ -40,7 +40,7 @@ export function ChatWindow({ position }: ChatWindowProps) {
 
   // Lets StackAIChat.vote() reach into the React tree from outside
   useEffect(() => {
-    registerVote((actionId, type) => { void vote(actionId, type) })
+    registerVote((actionId, type, reason) => { void vote(actionId, type, reason) })
     return () => unregisterVote()
   }, [vote])
 

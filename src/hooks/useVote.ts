@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { bridgeToggleReaction, bridgeGetToken } from '../sendMessageBridge'
 import { redactValue, truncateForDisplay } from '../utils/redact'
-import type { VoteType, ReactionToggleAck } from '../types'
+import { MAX_VOTE_REASON_LENGTH } from '../types'
+import type { VoteType, ReactionToggleAck, ReactionTogglePayload } from '../types'
 
 /**
  * `actionId` is the message `_id`. Rejecting malformed ids on the client keeps the
@@ -54,7 +55,7 @@ export function useVote() {
     else console.error('[SDKChat]', safeMessage, safeDetail ?? '')
   }, [config])
 
-  const vote = useCallback((actionId: string, type: VoteType) => {
+  const vote = useCallback((actionId: string, type: VoteType, reason?: string) => {
     if (!config?.voting?.enabled) return
     if (!isVotableId(actionId)) return
 
@@ -92,7 +93,14 @@ export function useVote() {
       reportError('Không gửi được vote: server không phản hồi sau 10s')
     }, ACK_TIMEOUT_MS)
 
-    bridgeToggleReaction({ conversationId, actionId, type }, (ack: ReactionToggleAck | undefined) => {
+    // A reason only makes sense when a dislike is being cast, not when one is being removed
+    const trimmedReason = type === 'dislike' && optimistic === 'dislike'
+      ? reason?.trim().slice(0, MAX_VOTE_REASON_LENGTH)
+      : undefined
+    const payload: ReactionTogglePayload = { conversationId, actionId, type }
+    if (trimmedReason) payload.reason = trimmedReason
+
+    bridgeToggleReaction(payload, (ack: ReactionToggleAck | undefined) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -120,6 +128,7 @@ export function useVote() {
         action: ack.resultAction ?? 'created',
         likes: ack.likes,
         dislikes: ack.dislikes,
+        ...(trimmedReason ? { reason: trimmedReason } : {}),
       })
     })
   }, [config, setReaction, setVotingUnavailable, reportError])

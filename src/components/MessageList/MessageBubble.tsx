@@ -3,7 +3,10 @@ import { renderMarkdown } from '../../utils/renderMarkdown'
 import { SourcesPanel } from './SourcesPanel'
 import { CollapsibleBlock } from './CollapsibleBlock'
 import { NoticeBanner } from './NoticeBanner'
+import { useState } from 'react'
 import { VoteButtons } from './VoteButtons'
+import { DislikeReasonForm } from './DislikeReasonForm'
+import { bridgeVote } from '../../sendMessageBridge'
 import { CopyButton } from './CopyButton'
 import { useChatStore } from '../../store/chatStore'
 
@@ -42,6 +45,35 @@ const COLLAPSIBLE_META: Record<string, { icon: string; label: string }> = {
   thinking:    { icon: '💭', label: 'Thinking' },
   tool_use:    { icon: '🔧', label: 'Tool Call' },
   tool_result: { icon: '📋', label: 'Tool Result' },
+}
+
+/** Timestamp + action buttons under an agent answer, plus the dislike reason form */
+function AssistantFooter({ message }: { message: Message }) {
+  const [reasonOpen, setReasonOpen] = useState(false)
+
+  function handleSubmit(reason: string) {
+    setReasonOpen(false)
+    if (message.messageId) bridgeVote(message.messageId, 'dislike', reason)
+  }
+
+  return (
+    <>
+      <div className="message-meta">
+        <span className="message-time">{formatTime(message.timestamp)}</span>
+        <div className="message-actions">
+          <CopyButton message={message} />
+          <VoteButtons
+            message={message}
+            reasonOpen={reasonOpen}
+            onDislikeReasonRequest={() => setReasonOpen(true)}
+          />
+        </div>
+      </div>
+      {reasonOpen && (
+        <DislikeReasonForm onSubmit={handleSubmit} onCancel={() => setReasonOpen(false)} />
+      )}
+    </>
+  )
 }
 
 interface MessageBubbleProps {
@@ -129,13 +161,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <SourcesPanel sources={message.sources} mode={referenceDisplay === 'url' ? 'url' : 'full'} />
       )}
 
-      <div className="message-meta">
-        <span className="message-time">{formatTime(message.timestamp)}</span>
-        <div className="message-actions">
-          <CopyButton message={message} />
-          <VoteButtons message={message} />
-        </div>
-      </div>
+      <AssistantFooter message={message} />
     </div>
   )
 }

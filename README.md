@@ -211,7 +211,7 @@ Unmount the widget and clean up all resources.
 | `greeting` | `string` | — | Welcome message shown when a fresh conversation starts (no history). Omit to disable. |
 | `showReferences` | `boolean` | — | Show/hide reference documents attached to agent responses. Default: `true` |
 | `referenceDisplay` | `'none' \| 'url' \| 'full'` | — | How sources render. Takes precedence over `showReferences`. Default: `'full'` |
-| `voting` | `VotingConfig` | — | `{ enabled }` — show 👍/👎 under agent answers. Default: `{ enabled: false }` |
+| `voting` | `VotingConfig` | — | `{ enabled, dislikeReason }` — show 👍/👎 under agent answers. Default: `{ enabled: false, dislikeReason: true }` |
 | `maxInputLength` | `number` | — | Input character limit. Default: `1000`, hard cap `2000` |
 | `tokenRefresh` | `() => string \| Promise<string>` | — | Called on every reconnect attempt to fetch the latest token |
 | `customStyles` | `CustomStylesConfig` | — | Per-component CSS overrides (injected into Shadow DOM) |
@@ -371,6 +371,10 @@ Votes travel over the WebSocket event `reaction:toggle`, not the REST endpoint. 
 running on an anonymous token holds no valid JWT for REST, so `POST /aiwm/actions/:id/react`
 answers `401 Invalid token payload`; WebSocket is the only channel open to those clients.
 
+- Clicking 👎 opens a textbox asking for a reason. Nothing is sent until the user presses
+  **Gửi**; the event then carries `reason` (max 500 chars): `{ conversationId, actionId,
+  type: 'dislike', reason }`. **Hủy** or `Esc` sends nothing. Set `voting.dislikeReason: false`
+  to send dislikes immediately without asking.
 - Clicking the button that is already active removes the vote — the server decides, the SDK
   never derives the result locally.
 - The initial state arrives inside `conversation:history`, so a vote survives a page reload

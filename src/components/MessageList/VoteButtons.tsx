@@ -5,10 +5,15 @@ import type { Message, VoteType } from '../../types'
 
 interface VoteButtonsProps {
   message: Message
+  /** Casting a dislike opens the reason form instead of sending right away */
+  onDislikeReasonRequest?: () => void
+  /** The reason form is open — keep 👎 highlighted while the user types */
+  reasonOpen?: boolean
 }
 
-export function VoteButtons({ message }: VoteButtonsProps) {
+export function VoteButtons({ message, onDislikeReasonRequest, reasonOpen = false }: VoteButtonsProps) {
   const enabled = useChatStore((s) => !!s.config?.voting?.enabled)
+  const askReason = useChatStore((s) => s.config?.voting?.dislikeReason !== false)
   const votingUnavailable = useChatStore((s) => s.votingUnavailable)
 
   // Only messages carrying a real server `_id` can be voted on: this rules out the greeting
@@ -23,6 +28,11 @@ export function VoteButtons({ message }: VoteButtonsProps) {
   // shares it instead of building its own callbacks and config subscription.
   function handleClick(type: VoteType) {
     if (pending || !message.messageId) return
+    // Only a NEW dislike asks for a reason; clicking the active 👎 removes it straight away
+    if (type === 'dislike' && current !== 'dislike' && askReason && onDislikeReasonRequest) {
+      onDislikeReasonRequest()
+      return
+    }
     bridgeVote(message.messageId, type)
   }
 
@@ -45,10 +55,11 @@ export function VoteButtons({ message }: VoteButtonsProps) {
 
       <button
         type="button"
-        className={`msg-action-btn vote-btn${current === 'dislike' ? ' is-active is-dislike' : ''}`}
+        className={`msg-action-btn vote-btn${current === 'dislike' || reasonOpen ? ' is-active is-dislike' : ''}`}
         onClick={() => handleClick('dislike')}
-        disabled={pending}
+        disabled={pending || reasonOpen}
         aria-pressed={current === 'dislike'}
+        aria-expanded={askReason && current !== 'dislike' ? reasonOpen : undefined}
         aria-label={current === 'dislike' ? 'Bỏ đánh giá chưa tốt' : 'Câu trả lời chưa tốt'}
         title={current === 'dislike' ? 'Bỏ đánh giá chưa tốt' : 'Câu trả lời chưa tốt'}
       >
