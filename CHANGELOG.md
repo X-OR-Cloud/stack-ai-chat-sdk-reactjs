@@ -8,6 +8,52 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 >
 > Lịch sử trước ngày hôm nay **không được ghi lại hồi tố** ở đây — không phải mọi bản cũ đều có git tag tương ứng (`0.3.0, 0.4.0, 0.8.0, 0.9.0, 0.10.x, 0.11.0, 0.12.0` không có tag), nên viết lại chi tiết từng bản sẽ phải suy đoán một phần. Ai cần lịch sử đầy đủ, tra `git log --oneline` trực tiếp trong repo — đó là nguồn chính xác, tài liệu này không lặp lại để tránh lệch.
 
+## [Unreleased]
+
+### Added
+- **Hỏi lý do khi dislike:** bấm 👎 mở ô nhập lý do ngay dưới câu trả lời; chỉ khi bấm **Gửi** mới emit `reaction:toggle` với payload `{ conversationId, actionId, type: 'dislike', reason }`. Bấm **Hủy** / `Esc` thì không gửi gì. Lý do bắt buộc nhập, tối đa 500 ký tự, `Ctrl/⌘+Enter` để gửi. Gỡ dislike (bấm lại 👎 đang sáng) vẫn gửi ngay, không hỏi. Tắt bằng `voting.dislikeReason: false`. `onVote` nhận thêm `reason`, `StackAIChat.vote(actionId, type, reason?)` nhận thêm tham số `reason`.
+
+## [0.16.0] - 2026-09-21
+
+### Added
+- **News article cards** — `config.news: NewsItem[]` hiển thị các card tin tức (title, image, description, url) trong chat ngay sau greeting. Cards nằm ngang scrollable, 1 card thì full-width, click mở link mới. Type `NewsItem` export cho host app.
+- **Client error telemetry** — SDK tự động gửi structured error logs về AIWM server qua `POST /client-telemetries/push` khi có `config.apiUrl`. Fire-and-forget (không block UI), rate-limited 10 req/min, fail-silent. Bao gồm các stage: `ws-handshake`, `ws-disconnect`, `ws-reconnect`, `message`, `message-send`, `conversation-join`. Tắt bằng `telemetry: false`.
+- **`config.apiUrl`** — AIWM API base URL. Khi có → telemetry tự bật. Khi không có → telemetry tự tắt, zero overhead.
+- **`config.telemetry`** — cờ opt-out explicit. Default: `true`.
+
+## [0.15.2] - 2026-09-21
+
+### Added
+- **Guardrail Reject — giữ message user + thông báo inline.** Khi server trả `guardrailBlocked: true`, message user giữ nguyên (trạng thái failed ✗, bubble mờ đi thay vì đỏ như lỗi mạng) và SDK inject dòng thông báo centered bên dưới (text từ `res.error` hoặc default "Nội dung không hợp lệ"). Trước đây message bị xoá hẳn (`removeMessage`).
+- **PII Redact Reconciliation — update content in-place.** Khi server redact PII trong tin nhắn user trước khi echo (VD: `"SĐT 0901234567"` → `"SĐT [PHONE_REDACTED]"`), SDK dùng `reconcileMessage` để thay content ngay trên bubble đang hiển thị. Trước đây `confirmMessage` chỉ update ID/timestamp/status, giữ nguyên content gốc (chưa redact).
+- **`config.onGuardrailBlock`** callback — gọi khi guardrail reject message, trả `{ error?: string }`.
+- **`config.onPiiRedacted`** callback — gọi khi server redact PII, trả `{ originalContent, redactedContent }`. Chỉ fire khi server gửi `metadata.piiRedacted: true`.
+- **`MessageMetadata`** type export — `piiRedacted`, `guardrailBlocked`, `guardrailNotice` flags trên `Message.metadata`.
+
+## [0.15.1] - 2026-09-16
+
+### Fixed
+- **Khoảng trắng quá lớn giữa các đoạn** trong câu trả lời của agent. Renderer cũ đổi *mỗi* dòng trống thành một `<br />`; LLM thường xuống 2–3 dòng giữa các mục nên mỗi chỗ cách đoạn cao 2–3 line-height, cộng thêm flex `gap` của `.md-body` ở hai bên. Giờ mọi chuỗi dòng trống gộp thành một spacer `.md-gap` cao 0 — khoảng cách đoạn = 2× flex gap (12px), khoảng cách dòng thường vẫn 6px.
+- **Danh sách đánh số lặp "1. 1. 1."** — agent hay chèn bullet con giữa các mục nên mỗi mục thành một `<ol>` riêng và trình duyệt đánh số lại. Giờ giữ số gốc của markdown qua `<ol start="n">`.
+
+## [0.15.0] - 2026-09-15
+
+Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** — chờ test với backend thật trước khi chạy `npm run release:patch`.
+
+### Fixed
+- **Autolink URL trong markdown** viết lại theo kiểu tách token trước, format sau:
+  - `_` / `*` trong URL không còn biến thành *nghiêng* và cắt cụt link (`…/path_with_under_scores`).
+  - Dấu câu cuối câu (`.`, `,`, `)`…) không còn bị nuốt vào href → hết 404 kiểu `…/page.`.
+  - `&` trong query string không bị escape hai lần (`?q=a&amp;amp;b=2`).
+  - Nhận diện domain theo TLD ≥ 2 ký tự thay vì whitelist cứng — `x-or.cloud`, `.io`, `.ai`… giờ thành link; tên file (`report.pdf`) thì không.
+  - Thêm cú pháp `<https://…>`, `[label](url "title")`, `mailto:` / `tel:` và autolink e-mail.
+  - Chặn scheme không an toàn (`javascript:`, `data:`) — giữ nguyên dạng text.
+
+### Added
+- **Streaming nhả theo từ** (`config.streaming.wordsPerSecond`, mặc định `10`). Trước đây mỗi `message:chunk` được vẽ nguyên cục ngay khi đến — chunk to/nhỏ, đến nhanh/chậm không đều nên chữ nhảy giật. Giờ nội dung được buffer rồi nhả từng từ theo tốc độ cấu hình, tự tăng tốc khi tụt lại so với server, và nhả nốt phần dư trước khi swap sang bubble final để không nhảy layout. `wordsPerSecond: 0` trả về hành vi cũ. Đổi được lúc runtime qua `updateConfig()`.
+- **`config.formatLinkLabel(url)`** — thay URL thô trong câu trả lời bằng nhãn ngắn (vd "Xem thủ tục"), href giữ nguyên URL đầy đủ. Link markdown `[label](url)` không bị ảnh hưởng. Chỉ áp dụng cho bubble trả lời của agent, không áp dụng cho thinking/tool/source.
+- Chỉ hiển thị phần chunk **liên tục từ đầu** — chunk đến sớm hơn thứ tự nằm chờ trong buffer thay vì bị chèn vào giữa đoạn đã hiện. Chunk mất hẳn thì bubble chờ tới `message:new` final (nguồn sự thật) — chưa có timeout bỏ qua.
+
 ## [0.14.0] - 2026-09-09
 
 Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (task đo/sửa nội bộ, chờ duyệt trước khi release — xem `work:6a7dd1f1f923a3035c710240`).
@@ -22,8 +68,7 @@ Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (
   - Chỉ hiện nút với assistant message thường đã có `_id` dạng ObjectId — greeting (chỉ có `localId`), bubble streaming, và `system`/`notice`/`error`/`thinking`/`tool_use`/`tool_result` đều không có nút (§12).
   - Gặp lỗi thường trực với phiên hiện tại (`not available for agent clients`, `Unauthenticated socket`, `Invalid token payload`) thì ẩn nút cho cả phiên, thay vì để người dùng bấm mãi. Rate limit **không** thuộc nhóm này vì chỉ tạm thời.
   - Nếu ACK không bao giờ về (socket zombie): sau 10s tự rollback và nhả khoá nút.
-  - Thêm `config.voting`, callback `config.onVote`, và API `StackAIChat.vote(actionId, type, reason?)`.
-  - **Lý do khi dislike:** bấm 👎 mở ô nhập lý do ngay dưới câu trả lời; chỉ khi bấm **Gửi** mới emit `reaction:toggle` với payload `{ conversationId, actionId, type: 'dislike', reason }`. Bấm **Hủy** / `Esc` thì không gửi gì. Lý do bắt buộc nhập, tối đa 500 ký tự, `Ctrl/⌘+Enter` để gửi. Gỡ dislike (bấm lại 👎 đang sáng) vẫn gửi ngay, không hỏi. Tắt bằng `voting.dislikeReason: false`. `onVote` nhận thêm `reason`.
+  - Thêm `config.voting`, callback `config.onVote`, và API `StackAIChat.vote(actionId, type)`.
 - **Nút sao chép câu trả lời của agent** — luôn hiện, không có cờ bật/tắt. Copy **markdown gốc** mà agent viết. Dùng Clipboard API, tự fallback sang `execCommand('copy')` cho trang nhúng qua http thường (Clipboard API chỉ chạy trên secure context). Không hiện với bubble đang stream.
   - Không hiển thị số đếm `likes`/`dislikes` trên UI: widget là 1-1 giữa khách và agent nên con số luôn là 0 hoặc 1. Số vẫn được lưu vào store để host app đọc qua `getMessages()`. Vì vậy SDK cũng **chưa** nghe broadcast `reaction:updated`.
 
@@ -83,4 +128,4 @@ Các thay đổi dưới đây **đã có trong code, CHƯA publish lên npm** (
 
 ## Trước khi có CHANGELOG
 
-15 bản đã publish: `0.1.0` (2026-03-12, bản đầu tiên) → `0.13.0` (2026-07-05, bản hiện tại mới nhất). Chi tiết: `git log --oneline` hoặc `npm view @xorcloud/stack-ai-chat-sdk time --json`.
+15 bản đã publish: `0.1.0` (2026-03-12, bản đầu tiên) → `0.15.0` (2026-07-05, bản hiện tại mới nhất). Chi tiết: `git log --oneline` hoặc `npm view @xorcloud/stack-ai-chat-sdk time --json`.

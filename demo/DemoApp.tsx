@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StackAIChat } from '../src/index'
 import { resolveSocketParams } from '../src/hooks/useSocket'
 import type { Message, MessageType, PresenceUpdatePayload, SDKConfig } from '../src/types'
@@ -71,12 +71,23 @@ export function DemoApp() {
   // ── Connection ──────────────────────────────────────────────────────────────
   const [wsUrl, setWsUrl]           = useState(DEFAULT_WS_URL)
   const [socketPath, setSocketPath] = useState('')
+  const [apiUrl, setApiUrl]         = useState('https://xsai-api.x-or.cloud/aiwm')
   const [token, setToken]           = useState('')
 
   // ── Widget UI ───────────────────────────────────────────────────────────────
   const [title, setTitle]           = useState('Hỗ trợ khách hàng')
   const [subtitle, setSubtitle]     = useState('Thường trả lời trong vài phút')
   const [greeting, setGreeting]     = useState('Xin chào! Tôi có thể giúp gì cho bạn?')
+  const [newsEnabled, setNewsEnabled] = useState(true)
+  const [newsItems, setNewsItems]   = useState([
+    { title: 'Hướng dẫn làm CCCD gắn chip online', image: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=225&fit=crop', description: 'Thủ tục đăng ký căn cước công dân gắn chip qua cổng dịch vụ công trực tuyến.', url: 'https://dichvucong.gov.vn' },
+    { title: 'Lịch tiếp công dân tháng 9/2026', image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=400&h=225&fit=crop', description: 'Thông báo lịch tiếp công dân định kỳ và đột xuất.', url: 'https://example.com/lich' },
+  ])
+  const updateNewsItem = (i: number, field: string, value: string) => {
+    setNewsItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item))
+  }
+  const removeNewsItem = (i: number) => setNewsItems(prev => prev.filter((_, idx) => idx !== i))
+  const addNewsItem = () => setNewsItems(prev => [...prev, { title: '', image: '', description: '', url: '' }])
   const [position, setPosition]     = useState<'bottom-right' | 'bottom-left'>('bottom-right')
   const [themeMode, setThemeMode]   = useState<'light' | 'dark' | 'auto'>('light')
   const [primaryColor, setPrimaryColor] = useState('#0066FF')
@@ -87,6 +98,10 @@ export function DemoApp() {
   const [referenceDisplay, setReferenceDisplay] = useState<'none' | 'url' | 'full'>('full')
   const [votingEnabled, setVotingEnabled]   = useState(false)
   const [maxInputLength, setMaxInputLength] = useState(1000)
+  // Streaming reveal speed (từ/giây, 0 = tắt) — đổi được lúc runtime qua updateConfig()
+  const [streamWordsPerSecond, setStreamWordsPerSecond] = useState(10)
+  // Nhãn thay cho URL thô trong câu trả lời (rỗng = giữ nguyên URL)
+  const [linkLabel, setLinkLabel] = useState('')
   const [hideKnowledgeSearch, setHideKnowledgeSearch] = useState(true)
 
   // ── Visible message types ───────────────────────────────────────────────────
@@ -222,6 +237,7 @@ export function DemoApp() {
   const sdkConfig: Partial<SDKConfig> = {
     wsUrl,
     token,
+    ...(apiUrl.trim() ? { apiUrl: apiUrl.trim() } : {}),
     ...(socketPath.trim() ? { socketPath: socketPath.trim() } : {}),
     title,
     subtitle,
@@ -238,7 +254,10 @@ export function DemoApp() {
     referenceDisplay,
     voting: { enabled: votingEnabled },
     maxInputLength,
+    streaming: { wordsPerSecond: streamWordsPerSecond },
+    ...(linkLabel.trim() ? { formatLinkLabel: () => linkLabel.trim() } : {}),
     ...(greeting.trim() ? { greeting: greeting.trim() } : {}),
+    ...(newsEnabled && newsItems.length ? { news: newsItems.filter(n => n.title.trim() && n.url.trim()) } : {}),
     ...(customStylesEnabled ? { customStyles: { global: customGlobalCss } } : {}),
   }
 
@@ -250,6 +269,13 @@ export function DemoApp() {
     ...sdkConfigWithoutRegex,
     hideKnowledgeSearch,
   }
+
+  // Streaming tuning có hiệu lực ngay ở tick kế tiếp — không cần destroy/init lại
+  useEffect(() => {
+    if (!initialized) return
+    StackAIChat.updateConfig({ streaming: sdkConfig.streaming })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, streamWordsPerSecond])
 
   function handleOpenInNewWindow() {
     if (!wsUrl || !token) {
@@ -385,6 +411,9 @@ export function DemoApp() {
             <label className="demo-label">Socket Path <span className="demo-hint">(tuỳ chọn, mặc định /socket.io)</span></label>
             <input className="demo-input" value={socketPath} onChange={(e) => setSocketPath(e.target.value)} placeholder="/socket.io" />
 
+            <label className="demo-label">API URL <span className="demo-hint">(telemetry)</span></label>
+            <input className="demo-input" value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} placeholder="https://xsai-api.x-or.cloud/aiwm" />
+
             <label className="demo-label">Token <span className="demo-required">*</span></label>
             <input className="demo-input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Token" />
 
@@ -423,6 +452,30 @@ export function DemoApp() {
 
                 <label className="demo-label">Lời chào (greeting)</label>
                 <input className="demo-input" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="Để trống nếu không dùng" />
+
+                <label className="demo-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="checkbox" checked={newsEnabled} onChange={(e) => setNewsEnabled(e.target.checked)} />
+                  Tin tức (news cards)
+                </label>
+                {newsEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {newsItems.map((item, i) => (
+                      <div key={i} style={{ border: '1px solid #ddd', borderRadius: 6, padding: 8, position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={() => removeNewsItem(i)}
+                          style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#999' }}
+                          title="Xóa"
+                        >✕</button>
+                        <input className="demo-input" placeholder="Tiêu đề *" value={item.title} onChange={(e) => updateNewsItem(i, 'title', e.target.value)} style={{ marginBottom: 4 }} />
+                        <input className="demo-input" placeholder="URL link *" value={item.url} onChange={(e) => updateNewsItem(i, 'url', e.target.value)} style={{ marginBottom: 4 }} />
+                        <input className="demo-input" placeholder="URL ảnh banner" value={item.image} onChange={(e) => updateNewsItem(i, 'image', e.target.value)} style={{ marginBottom: 4 }} />
+                        <input className="demo-input" placeholder="Mô tả" value={item.description} onChange={(e) => updateNewsItem(i, 'description', e.target.value)} />
+                      </div>
+                    ))}
+                    <button type="button" className="demo-input" onClick={addNewsItem} style={{ cursor: 'pointer', textAlign: 'center' }}>+ Thêm tin tức</button>
+                  </div>
+                )}
 
                 <div className="demo-row">
                   <div className="demo-col">
@@ -482,6 +535,23 @@ export function DemoApp() {
                     onChange={(e) => setMaxInputLength(Number(e.target.value))} style={{ flex: 1 }} />
                   <span style={{ minWidth: '40px', textAlign: 'right', fontSize: '13px', fontWeight: 600 }}>{maxInputLength}</span>
                 </div>
+              </section>
+
+              {/* Streaming */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">⌨️ Streaming</h3>
+                <p className="demo-hint">Tốc độ nhả câu trả lời đang stream (từ/giây). 0 = hiện nguyên chunk khi đến. Đổi được ngay khi widget đang chạy.</p>
+                <label className="demo-label">wordsPerSecond</label>
+                <input type="number" className="demo-input" min={0} max={200} step={1} value={streamWordsPerSecond}
+                  onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setStreamWordsPerSecond(n) }} />
+              </section>
+
+              {/* Links */}
+              <section className="demo-section">
+                <h3 className="demo-section__title">🔗 Links</h3>
+                <p className="demo-hint">Nhãn thay cho URL thô trong câu trả lời (formatLinkLabel). Để trống = hiện nguyên URL. Cần Destroy → Khởi tạo lại.</p>
+                <input type="text" className="demo-input" value={linkLabel} placeholder="VD: Xem thủ tục"
+                  onChange={(e) => setLinkLabel(e.target.value)} />
               </section>
 
               {/* Visible message types */}

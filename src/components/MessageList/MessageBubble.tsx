@@ -4,6 +4,7 @@ import { SourcesPanel } from './SourcesPanel'
 import { CollapsibleBlock } from './CollapsibleBlock'
 import { NoticeBanner } from './NoticeBanner'
 import { useState } from 'react'
+import { NewsCards } from './NewsCards'
 import { VoteButtons } from './VoteButtons'
 import { DislikeReasonForm } from './DislikeReasonForm'
 import { bridgeVote } from '../../sendMessageBridge'
@@ -82,6 +83,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const formatLinkLabel = useChatStore((s) => s.config?.formatLinkLabel)
   const referenceDisplay = useChatStore((s) => {
     const cfg = s.config
     if (cfg?.referenceDisplay) return cfg.referenceDisplay
@@ -98,8 +100,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     )
   }
 
+  // news cards — articles injected after greeting
+  if (message.type === 'news') {
+    return (
+      <div className="message-row assistant">
+        <NewsCards message={message} />
+      </div>
+    )
+  }
+
   // notice / system / error → inline banner, no timestamp
   if (message.type === 'notice' || message.type === 'system' || message.type === 'error') {
+    // Guardrail rejection notice — centered muted text (SDK-injected)
+    if (message.metadata?.guardrailNotice) {
+      return (
+        <div className="guardrail-notice" role="alert">
+          {message.content}
+        </div>
+      )
+    }
     return (
       <div className="message-row assistant">
         <NoticeBanner message={message} />
@@ -125,7 +144,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   if (isUser) {
     return (
       <div className="message-row user" >
-        <div className={`message-bubble status-${message.status}`}>
+        <div className={`message-bubble status-${message.status}${message.metadata?.guardrailBlocked ? ' guardrail-blocked' : ''}`}>
           {message.content}
           {message.attachments.length > 0 && (
             <div className="message-attachments">
@@ -149,7 +168,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className="message-row assistant">
       <div className="agent-content">
-        <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+        <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content, { formatLinkLabel }) }} />
         {message.attachments.length > 0 && (
           <div className="message-attachments">
             {message.attachments.map((att, i) => <AttachmentChip key={i} attachment={att} />)}

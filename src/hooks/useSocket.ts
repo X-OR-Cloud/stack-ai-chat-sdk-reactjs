@@ -10,6 +10,7 @@ import {
   registerToggleReaction, unregisterToggleReaction,
 } from '../sendMessageBridge'
 import { redactValue, truncateForDisplay } from '../utils/redact'
+import { telemetry } from '../services/telemetry'
 import type {
   Message,
   MessageSource,
@@ -29,7 +30,7 @@ let lastAssistantMessageAt = 0
 const INTERNAL_TYPES = ['thinking', 'tool_use', 'tool_result']
 // Luôn hiển thị bất kể visibleMessageTypes: guardrail block / agent sleep / lỗi
 // đến dưới dạng system|error — ẩn chúng đi thì user gửi tin mà không thấy phản hồi gì.
-const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error']
+const ALWAYS_VISIBLE_TYPES = ['system', 'notice', 'error', 'news']
 
 // wsUrl "https://ws.hydrabyte.co/chat" → origin "https://ws.hydrabyte.co", path "/chat/socket.io"
 // wsUrl "http://10.10.0.80:3407"       → origin "http://10.10.0.80:3407",   path "/socket.io"
@@ -44,6 +45,14 @@ export function resolveSocketParams(wsUrl: string, socketPathOverride?: string):
   } catch {
     return { serverOrigin: wsUrl, socketPath: socketPathOverride ?? '/socket.io' }
   }
+}
+
+// Join consecutive chunks from the start; stop at the first gap. Server may index from 0 or 1.
+function contiguousContent(chunks: Map<number, string>): string {
+  let i = chunks.has(0) ? 0 : 1
+  let out = ''
+  for (let delta = chunks.get(i); delta !== undefined; delta = chunks.get(++i)) out += delta
+  return out
 }
 
 /** Server gửi shape: { _id, role, content, type, createdAt, sources, attachments, isFinal, ... } */
@@ -61,6 +70,8 @@ interface ServerMessage {
   isFinal?: boolean
   attachments?: Message['attachments']
   sources?: MessageSource[]
+  /** Server-side metadata (PII redaction, etc.) */
+  metadata?: { piiRedacted?: boolean }
   /** Reactions embedded in conversation:history. The docs describe this in two places
    *  with two different shapes — read both, see extractReaction(). */
   reactions?: unknown
@@ -141,6 +152,7 @@ function mapServerMessage(payload: ServerMessage): Message {
     attachments: payload.attachments ?? [],
     sources: payload.sources ?? [],
     timestamp: payload.createdAt ?? payload.timestamp,
+    metadata: payload.metadata,
     ...extractReaction(payload),
   }
 }
@@ -189,6 +201,7 @@ export function useSocket() {
   const setStreaming = useChatStore((s) => s.setStreaming)
   const setHistoryHasMore = useChatStore((s) => s.setHistoryHasMore)
   const setLoadingHistory = useChatStore((s) => s.setLoadingHistory)
+  const reconcileMessage = useChatStore((s) => s.reconcileMessage)
 
   // Giữ token mới nhất — updateToken() ghi đè trực tiếp, config.token là giá trị khởi tạo
   useEffect(() => {
@@ -212,6 +225,19 @@ export function useSocket() {
       sources: [],
       timestamp: new Date().toISOString(),
     })
+
+    // News cards — inject right after greeting, same session guard
+    if (config.news?.length) {
+      addMessage({
+        localId: `news_${Date.now()}`,
+        role: 'assistant',
+        content: JSON.stringify(config.news),
+        type: 'news',
+        status: 'sent',
+        attachments: [],
+        sources: [],
+      })
+    }
   }, [config, addMessage])
 
   const loadHistory = useCallback((socket: Socket, convId: string, before?: string) => {
@@ -317,7 +343,11 @@ export function useSocket() {
   // bất kỳ chuỗi nào đến từ hạ tầng mạng (message/detail) là an toàn để in nguyên văn.
   // Cắt bớt string quá dài để hiển thị gọn trong console — LUÔN chạy SAU redactToken(),
   // không bao giờ trước (xem lý do ở comment trong connect_error handler).
-  const reportError = useCallback((message: string, detail?: Record<string, unknown>) => {
+  const reportError = useCallback((
+    message: string,
+    detail?: Record<string, unknown>,
+    tele?: { stage?: string; level?: 'warn' | 'error' | 'fatal'; errorType?: string },
+  ) => {
     const currentToken = tokenRef.current ?? config?.token
     const safeMessage = truncateForDisplay(redactToken(message, currentToken)) as string
     const safeDetail = detail
@@ -328,6 +358,15 @@ export function useSocket() {
     } else {
       console.error('[SDKChat]', safeMessage, safeDetail ?? '')
     }
+
+    // Push telemetry (fire-and-forget, never blocks)
+    telemetry.push({
+      level: tele?.level ?? 'error',
+      errorType: tele?.errorType ?? 'SDKError',
+      message,
+      stackTrace: detail ? JSON.stringify(detail) : undefined,
+      stage: tele?.stage ?? 'runtime',
+    })
   }, [config])
 
   const connect = useCallback(() => {
@@ -401,7 +440,7 @@ export function useSocket() {
             loadHistory(socket, res.conversationId)
           }
         } else if (res && !res.success && res.error) {
-          reportError(res.error)
+          reportError(res.error, undefined, { stage: 'conversation-join', errorType: 'JoinError' })
         }
         setPhase('chat')
       }
@@ -428,7 +467,7 @@ export function useSocket() {
       // Chỉ log error, KHÔNG set phase về form — để Socket.IO tự reconnect
       // Nếu là intentional disconnect (destroy/close) thì bỏ qua
       if (!isIntentionalDisconnectRef.current) {
-        reportError(`Disconnected: ${reason}`)
+        reportError(`Disconnected: ${reason}`, undefined, { stage: 'ws-disconnect', level: 'warn', errorType: 'DisconnectError' })
         // Nếu server cắt kỳ do idle hoặc network, set phase connecting
         // để UI show spinner thay vì để người dùng gõ vào void
         setPhase('connecting')
@@ -459,7 +498,7 @@ export function useSocket() {
       if (e.context?.responseText) detail.httpResponse  = e.context.responseText
       if (e.data !== undefined)    detail.serverData    = e.data
 
-      reportError(e.message, detail)
+      reportError(e.message, detail, { stage: 'ws-handshake', errorType: 'ConnectionError' })
     })
 
     // Manager-level event: Socket.IO hết lượt retry → socket.active không tự về false
@@ -467,7 +506,7 @@ export function useSocket() {
     socket.io.on('reconnect_failed', () => {
       isConnectingRef.current = false
       setPhase('form')
-      reportError('Không thể kết nối lại sau nhiều lần thử. Vui lòng thử lại.')
+      reportError('Không thể kết nối lại sau nhiều lần thử. Vui lòng thử lại.', undefined, { stage: 'ws-reconnect', level: 'fatal', errorType: 'ReconnectError' })
     })
 
     // Token refresh tại reconnect_attempt (ops-portal: useChatSocket.ts:311-317)
@@ -480,6 +519,7 @@ export function useSocket() {
         if (newToken && newToken !== tokenRef.current) {
           tokenRef.current = newToken
           rememberToken(newToken)
+          telemetry.setToken(newToken)
           socket.auth = { token: newToken }
           // Cập nhật query token cho handshake polling tiếp theo
           const opts = socket.io.opts as Record<string, unknown> & { query?: Record<string, unknown> }
@@ -518,13 +558,14 @@ export function useSocket() {
         }
 
         setConversationId(payload.conversationId)
+        telemetry.setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
       }
     })
 
     socket.on('message:error', (payload: { error: string }) => {
-      reportError(payload.error)
+      reportError(payload.error, undefined, { stage: 'message', errorType: 'MessageError' })
       setWaitingForAgent(false)
     })
 
@@ -552,10 +593,6 @@ export function useSocket() {
     socket.on('message:chunk', (payload: MessageChunkPayload) => {
       if (!payload?.actionId || typeof payload.delta !== 'string') return
 
-      // Chunk thay thế typing dots bằng bubble nội dung thật
-      setAgentTyping(false)
-      if (typingTimeout) clearTimeout(typingTimeout)
-
       let entry = chunksRef.current.get(payload.actionId)
       if (!entry) {
         entry = new Map()
@@ -563,10 +600,14 @@ export function useSocket() {
       }
       entry.set(payload.chunkIndex, payload.delta)
 
-      const content = [...entry.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([, delta]) => delta)
-        .join('')
+      // Only push the contiguous prefix — out-of-order chunks wait in the buffer, so content
+      // only ever appends and never gets inserted mid-text (avoids visible text jumps)
+      const content = contiguousContent(entry)
+      if (!content) return // first chunk not here yet → keep typing dots
+
+      // Chunk thay thế typing dots bằng bubble nội dung thật
+      setAgentTyping(false)
+      if (typingTimeout) clearTimeout(typingTimeout)
       setStreaming({ actionId: payload.actionId, content })
     })
 
@@ -621,19 +662,40 @@ export function useSocket() {
         let target = messages.find(
           (m) => m.localId?.startsWith('local_') && m.status === 'sending' && m.content === incomingText
         )
-        // Fallback: oldest pending temp message (server mutated content)
+        // Fallback: oldest pending temp message (server mutated content, e.g. PII redaction).
+        // Khi có metadata.piiRedacted → chắc chắn server đã sửa content.
+        // Khi không có flag → vẫn fallback (backward-compat với server cũ không gửi metadata).
         if (!target) {
           target = messages.find(
             (m) => m.localId?.startsWith('local_') && m.status === 'sending'
           )
         }
         if (target?.localId) {
-          confirmMessage(target.localId, id ?? '', payload.createdAt ?? payload.timestamp ?? new Date().toISOString())
+          const contentChanged = target.content !== incomingText
+          if (contentChanged) {
+            // Content bị sửa (PII redact hoặc server moderation) → reconcile toàn bộ
+            reconcileMessage(target.localId, {
+              messageId: id,
+              content: incomingText,
+              timestamp: payload.createdAt ?? payload.timestamp ?? new Date().toISOString(),
+              metadata: payload.metadata,
+            })
+            // Chỉ gọi callback khi server xác nhận qua piiRedacted flag
+            if (payload.metadata?.piiRedacted) {
+              config?.onPiiRedacted?.({
+                originalContent: target.content,
+                redactedContent: incomingText,
+              })
+            }
+          } else {
+            // Content khớp → confirm bình thường
+            confirmMessage(target.localId, id ?? '', payload.createdAt ?? payload.timestamp ?? new Date().toISOString())
+          }
         }
-        // Không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
+        // Không match + không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
       }
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError, reconcileMessage])
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true
@@ -686,13 +748,32 @@ export function useSocket() {
       }
       setWaitingForAgent(false)
       if (res?.guardrailBlocked) {
-        // Guardrail chặn: server broadcast system notice giải thích —
-        // gỡ optimistic message để không hiển thị nội dung bị chặn (doc CWS)
-        useChatStore.getState().removeMessage(localId)
+        // Guardrail chặn: giữ message user (trạng thái failed) để user thấy mình gửi gì.
+        // Đánh dấu guardrailBlocked để UI phân biệt với lỗi mạng (màu khác).
+        // SDK inject thông báo centered ngay bên dưới (không chờ server broadcast).
+        useChatStore.setState((state) => ({
+          messages: state.messages.map((m) =>
+            m.localId === localId
+              ? { ...m, status: 'failed' as const, metadata: { ...m.metadata, guardrailBlocked: true } }
+              : m
+          ),
+        }))
+        addMessage({
+          localId: `guardrail_${Date.now()}`,
+          role: 'assistant',
+          content: res.error || 'Nội dung không hợp lệ',
+          type: 'notice',
+          status: 'sent',
+          attachments: [],
+          sources: [],
+          timestamp: new Date().toISOString(),
+          metadata: { guardrailNotice: true },
+        })
+        config?.onGuardrailBlock?.({ error: res.error })
       } else {
         failMessage(localId)
       }
-      if (res?.error) reportError(res.error)
+      if (res?.error) reportError(res.error, undefined, { stage: 'message-send', errorType: 'SendError' })
     })
 
     // Timeout: mark failed nếu 10s không nhận ack (zombie socket / server im lặng).

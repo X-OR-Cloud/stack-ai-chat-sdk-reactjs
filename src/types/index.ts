@@ -10,6 +10,18 @@ export interface FieldConfig {
   placeholder?: string
 }
 
+// ─── News articles ───────────────────────────────────────────────────────────
+
+/** News article card shown in chat after greeting */
+export interface NewsItem {
+  title: string
+  /** Banner image URL */
+  image?: string
+  description?: string
+  /** Link opened in new tab when user clicks the card */
+  url: string
+}
+
 // ─── Session ─────────────────────────────────────────────────────────────────
 
 export interface SessionConfig {
@@ -90,6 +102,18 @@ export interface SDKConfig {
    */
   socketPath?: string
 
+  /**
+   * AIWM API base URL for client error telemetry (e.g. 'https://xsai-api.x-or.cloud/aiwm').
+   * When provided, SDK automatically sends structured error logs to the server.
+   * When omitted, telemetry is disabled.
+   */
+  apiUrl?: string
+  /**
+   * Enable/disable client error telemetry. Default: true.
+   * Set to false to explicitly disable even when apiUrl is provided.
+   */
+  telemetry?: boolean
+
 
   // Pre-chat form
   fields?: FieldConfig[]
@@ -145,8 +169,22 @@ export interface SDKConfig {
   // Greeting — message shown immediately after connection, before any user input.
   greeting?: string
 
+  /** News articles displayed as cards in chat after greeting. */
+  news?: NewsItem[]
+
   // Max characters allowed in message input. Default: 1000. Hard cap: 2000.
   maxInputLength?: number
+
+  /** Streaming reveal speed. Default: { wordsPerSecond: 10 }; 0 = paint chunks as they arrive */
+  streaming?: StreamingConfig
+
+  /**
+   * Label for bare URLs in agent answers (e.g. "…tham khao tai https://long/url."). Return a
+   * short label such as "Xem thu tuc" to render "…tham khao tai [Xem thu tuc]." instead of the
+   * raw URL; return null/undefined to keep the URL. Markdown links `[label](url)` keep their
+   * own label. Only http(s) URLs are passed in.
+   */
+  formatLinkLabel?: (url: string) => string | null | undefined
 
   /**
    * Token refresh callback — called by SDK on every Socket.IO reconnect_attempt.
@@ -169,6 +207,11 @@ export interface SDKConfig {
   /** Called once the server confirms the vote */
   onVote?: (event: VoteEvent) => void
   onPresenceUpdate?: (payload: PresenceUpdatePayload) => void
+  /** Called when a guardrail blocks the user's message (reject action).
+   *  The user's message is kept in UI with failed status; server notice follows. */
+  onGuardrailBlock?: (info: { error?: string }) => void
+  /** Called when server redacts PII in the user's message before echo */
+  onPiiRedacted?: (info: { originalContent: string; redactedContent: string }) => void
 }
 
 // ─── Socket.IO payloads ──────────────────────────────────────────────────────
@@ -227,6 +270,19 @@ export type VoteType = 'like' | 'dislike'
 
 /** Toggle outcome decided by the server — never derived on the client */
 export type VoteAction = 'created' | 'updated' | 'removed'
+
+/**
+ * How a streamed answer (`message:chunk`) is revealed.
+ * Defaults to word-by-word reveal to avoid jerkiness when server chunks are large or uneven.
+ */
+export interface StreamingConfig {
+  /**
+   * Reveal speed in words per second. The SDK speeds up automatically when it falls
+   * behind the server, so this is the pace you see when the server is not the bottleneck.
+   * `0` disables the effect and paints each chunk as it arrives. Default: 10
+   */
+  wordsPerSecond?: number
+}
 
 export interface VotingConfig {
   /** Show vote buttons under agent answers. Default: false (opt-in) */
@@ -297,7 +353,17 @@ export interface VoteEvent {
 
 export type MessageRole = 'user' | 'assistant'
 export type MessageStatus = 'sending' | 'sent' | 'failed'
-export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider'
+export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider' | 'news'
+
+/** Server-side metadata attached to echoed messages */
+export interface MessageMetadata {
+  /** true when server has redacted PII from the message content */
+  piiRedacted?: boolean
+  /** SDK-injected: true for guardrail rejection notices shown inline */
+  guardrailNotice?: boolean
+  /** SDK-injected: true when this user message was blocked by a guardrail */
+  guardrailBlocked?: boolean
+}
 
 export interface Message {
   /** Local temp id before server confirms */
@@ -318,6 +384,8 @@ export interface Message {
   dislikes?: number
   /** Waiting for the server to confirm — locks the buttons against double submits */
   votePending?: boolean
+  /** Server-side metadata (PII redaction flag, etc.) */
+  metadata?: MessageMetadata
 }
 
 /** Structured reference attached to an outgoing message (doc: message:send.references) */

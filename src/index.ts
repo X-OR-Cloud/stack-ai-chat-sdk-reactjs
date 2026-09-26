@@ -11,9 +11,10 @@ import {
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
 import type { SDKConfig, SendMessagePayload, VoteType } from './types'
 import { SDK_VERSION } from './version'
+import { telemetry } from './services/telemetry'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageMetadata, NewsItem, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null
@@ -58,6 +59,13 @@ export const StackAIChat = {
     console.info(`[SDKChat] SDK v${SDK_VERSION}`)
 
     currentConfig = config
+
+    // ── Telemetry ────────────────────────────────────────────────────────────
+    telemetry.configure({
+      apiUrl: config.apiUrl ?? '',
+      token: config.token,
+      enabled: config.telemetry !== false,
+    })
 
     // ── Shadow DOM setup ────────────────────────────────────────────────────
     const themeMode = config.theme?.mode ?? 'light'
@@ -147,6 +155,7 @@ export const StackAIChat = {
   /** Refresh JWT (e.g. sau khi IAM cấp accessToken mới) — reconnect với token mới */
   updateToken(token: string): void {
     if (currentConfig) currentConfig = { ...currentConfig, token }
+    telemetry.setToken(token)
     bridgeUpdateToken(token)
   },
 
@@ -174,6 +183,7 @@ export const StackAIChat = {
     unregisterUpdateToken()
     unregisterVote()
     unregisterGetToken()
+    telemetry.reset()
     useChatStore.getState().reset()
   },
 }

@@ -3,13 +3,16 @@ import { MessageBubble } from './MessageBubble'
 import { TypingIndicator } from '../TypingIndicator/TypingIndicator'
 import { useChatStore } from '../../store/chatStore'
 import { bridgeLoadOlder } from '../../sendMessageBridge'
+import { useSmoothStream } from '../../hooks/useSmoothStream'
 import type { Message } from '../../types'
 
 export function MessageList() {
   const messages = useChatStore((s) => s.messages)
   const isAgentTyping = useChatStore((s) => s.isAgentTyping)
   const isWaitingForAgent = useChatStore((s) => s.isWaitingForAgent)
-  const streaming = useChatStore((s) => s.streaming)
+  const rawStreaming = useChatStore((s) => s.streaming)
+  // Word-by-word reveal instead of dumping whole chunks — keeps the bubble until the remainder is revealed after final
+  const streaming = useSmoothStream(rawStreaming)
   const historyHasMore = useChatStore((s) => s.historyHasMore)
   const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -47,9 +50,11 @@ export function MessageList() {
         </button>
       )}
 
-      {messages.map((msg, i) => (
-        <MessageBubble key={msg.messageId ?? msg.localId ?? i} message={msg} />
-      ))}
+      {messages.map((msg, i) => {
+        // Final message arrived but the streaming bubble is still revealing → hide it to avoid duplicates
+        if (streaming && msg.messageId === streaming.actionId) return null
+        return <MessageBubble key={msg.messageId ?? msg.localId ?? i} message={msg} />
+      })}
 
       {streamingMessage && <MessageBubble message={streamingMessage} />}
 

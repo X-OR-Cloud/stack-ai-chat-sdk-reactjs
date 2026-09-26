@@ -337,12 +337,31 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .session-divider::before, .session-divider::after { content: ''; flex: 1; height: 1px; background-color: var(--sai-border); }
 .session-divider__label { font-size: 11px; color: var(--sai-text-muted); white-space: nowrap; padding: 0 4px; }
 
+/* ── News cards ─────────────────────────────────────────────────────────── */
+.news-cards { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; width: 100%; }
+.news-cards::-webkit-scrollbar { height: 3px; }
+.news-cards::-webkit-scrollbar-thumb { background: var(--sai-border); border-radius: 3px; }
+.news-card { flex: 0 0 200px; scroll-snap-align: start; border: 1px solid var(--sai-border); border-radius: var(--sai-radius-sm); overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow var(--sai-transition), border-color var(--sai-transition); cursor: pointer; background: var(--sai-bg); }
+.news-card:hover { border-color: var(--sai-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.news-card__image { width: 100%; aspect-ratio: 16/9; overflow: hidden; background: var(--sai-border); }
+.news-card__image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.news-card__body { padding: 8px 10px; }
+.news-card__title { font-size: 13px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--sai-text); }
+.news-card__desc { font-size: 12px; color: var(--sai-text-muted); line-height: 1.4; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-card:only-child { flex: 1 1 100%; }
+
 /* ── Notice banner ──────────────────────────────────────────────────────── */
 .notice-banner { width: 100%; display: flex; align-items: flex-start; gap: 7px; padding: 8px 12px; background-color: var(--sai-notice-bg); border: 1px solid var(--sai-notice-border); border-radius: var(--sai-radius-sm); }
 .notice-banner__icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
 .notice-banner__content { flex: 1; color: var(--sai-notice-text); font-size: 12px; line-height: 1.5; }
 .notice-banner--error { background-color: color-mix(in srgb, var(--sai-error) 10%, transparent); border-color: color-mix(in srgb, var(--sai-error) 40%, transparent); }
 .notice-banner--error .notice-banner__content { color: var(--sai-error); }
+
+/* ── Guardrail rejection notice (centered muted text) ────────────────────── */
+.guardrail-notice { width: 100%; display: flex; justify-content: center; align-items: center; font-size: 12px; color: var(--sai-text-muted); padding: 4px 0; text-align: center; animation: sai-fade-in 200ms ease; }
+
+/* ── Guardrail-blocked user bubble (distinct from network-failed red) ────── */
+.message-row.user .message-bubble.guardrail-blocked { background-color: color-mix(in srgb, var(--sai-text-muted) 20%, var(--sai-bubble-user-bg)); opacity: 0.75; }
 
 /* ── Load older history ─────────────────────────────────────────────────── */
 .load-older-btn {
@@ -391,6 +410,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 /* ── Markdown body (agent messages) ────────────────────────────────────── */
 .md-body { display: flex; flex-direction: column; gap: 6px; }
 .md-body .md-p { margin: 0; }
+.md-body .md-gap { height: 0; } /* .md-body flex gap on both sides = 2x normal line spacing */
 .md-body .md-h1, .md-body .md-h2, .md-body .md-h3,
 .md-body .md-h4, .md-body .md-h5, .md-body .md-h6 { margin: 4px 0 2px; font-weight: 700; line-height: 1.3; }
 .md-body .md-h1 { font-size: 1.2em; }
@@ -405,6 +425,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .md-body .md-code-block { margin: 4px 0; padding: 10px 12px; border-radius: var(--sai-radius-sm); background: rgba(0,0,0,0.15); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
 .md-body .md-link { color: var(--sai-primary); text-decoration: underline; transition: color var(--sai-transition); }
 .md-body .md-link:hover { color: var(--sai-primary-hover); }
+.md-body .md-link--labeled { font-weight: 600; }
 .md-body .md-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; }
 .md-body .md-table th, .md-body .md-table td { padding: 6px 10px; border: 1px solid var(--sai-border); }
 .md-body .md-table th { font-weight: 600; background: rgba(0,0,0,0.05); }
