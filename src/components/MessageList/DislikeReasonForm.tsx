@@ -1,33 +1,63 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { MAX_VOTE_REASON_LENGTH } from '../../types'
+import { useEffect, useId, useState } from 'react'
+import { useChatStore } from '../../store/chatStore'
+import { bridgeGetToken } from '../../sendMessageBridge'
+import { defaultReasonSet, loadReactionReasons } from '../../services/reactionReasons'
+import type { ReactionFeedback } from '../../types'
 
 interface DislikeReasonFormProps {
-  onSubmit: (reason: string) => void
+  /** The viewer's existing feedback, used to pre-fill the form */
+  initial?: ReactionFeedback | null
+  /** The dislike is still being confirmed — feedback cannot be sent yet */
+  pending?: boolean
+  onSubmit: (feedback: Required<ReactionFeedback>) => void
   onCancel: () => void
 }
 
 /**
- * Shown after the user clicks 👎. Nothing reaches the server until "Gửi" is pressed —
- * cancelling leaves the vote untouched.
+ * Shown after the user clicks 👎. Nothing reaches the server until "Gửi", which sends the
+ * dislike together with the feedback; "Hủy" sends nothing. Also reused to edit the feedback
+ * of an existing dislike, pre-filled with `initial`.
  */
-export function DislikeReasonForm({ onSubmit, onCancel }: DislikeReasonFormProps) {
-  const [reason, setReason] = useState('')
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+export function DislikeReasonForm({ initial, pending = false, onSubmit, onCancel }: DislikeReasonFormProps) {
+  const apiUrl = useChatStore((s) => s.config?.apiUrl)
+  const configToken = useChatStore((s) => s.config?.token)
+  const [reasonSet, setReasonSet] = useState(() => defaultReasonSet('dislike'))
+  const [selected, setSelected] = useState<string[]>(initial?.reasons ?? [])
+  const [comment, setComment] = useState(initial?.comment ?? '')
   // Several answers can have the form open at once, so the id must be unique
   const inputId = useId()
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    let active = true
+    void loadReactionReasons(apiUrl, bridgeGetToken() ?? configToken ?? null, 'dislike').then((set) => {
+      if (active) setReasonSet(set)
+    })
+    return () => { active = false }
+  }, [apiUrl, configToken])
 
-  const canSubmit = reason.trim().length > 0
+  const { reasons, commentMaxLength, reasonsMax } = reasonSet
+  const knownCodes = new Set(reasons.map((r) => r.code))
+  // Drop codes the server no longer knows — sending one is a 400
+  const validSelected = selected.filter((code) => knownCodes.has(code))
+  // Picking "other" nudges (does not force) the user to explain in the comment
+  const hint = validSelected.includes('other') ? reasons.find((r) => r.code === 'other')?.hint : undefined
+  const canSubmit = !pending && (validSelected.length > 0 || comment.trim().length > 0)
+
+  function toggle(code: string) {
+    setSelected((prev) => {
+      if (prev.includes(code)) return prev.filter((c) => c !== code)
+      if (prev.filter((c) => knownCodes.has(c)).length >= reasonsMax) return prev
+      return [...prev, code]
+    })
+  }
 
   function submit() {
     if (!canSubmit) return
-    onSubmit(reason.trim())
+    // Send both keys so an edit can also clear a value the user removed
+    onSubmit({ comment: comment.trim(), reasons: validSelected })
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
     // Stop the event here so the host page / chat input never sees these keys
     e.stopPropagation()
     if (e.key === 'Escape') {
@@ -43,22 +73,38 @@ export function DislikeReasonForm({ onSubmit, onCancel }: DislikeReasonFormProps
     <form
       className="dislike-reason"
       onSubmit={(e) => { e.preventDefault(); submit() }}
+      onKeyDown={handleKeyDown}
     >
-      <label className="dislike-reason__label" htmlFor={inputId}>
-        Câu trả lời chưa tốt ở điểm nào?
-      </label>
+      <span className="dislike-reason__label">Câu trả lời chưa tốt ở điểm nào?</span>
+      <div className="dislike-reason__chips" role="group" aria-label="Lý do">
+        {reasons.map((r) => {
+          const active = validSelected.includes(r.code)
+          return (
+            <button
+              key={r.code}
+              type="button"
+              className={`dislike-reason__chip${active ? ' is-active' : ''}`}
+              aria-pressed={active}
+              title={r.hint}
+              disabled={!active && validSelected.length >= reasonsMax}
+              onClick={() => toggle(r.code)}
+            >
+              {r.label}
+            </button>
+          )
+        })}
+      </div>
+      <label className="dislike-reason__sr" htmlFor={inputId}>Góp ý thêm</label>
       <textarea
         id={inputId}
-        ref={inputRef}
         className="dislike-reason__input"
-        value={reason}
-        maxLength={MAX_VOTE_REASON_LENGTH}
-        placeholder="Nhập lý do để chúng tôi cải thiện..."
-        onChange={(e) => setReason(e.target.value)}
-        onKeyDown={handleKeyDown}
+        value={comment}
+        maxLength={commentMaxLength}
+        placeholder={hint ?? 'Góp ý thêm (không bắt buộc)...'}
+        onChange={(e) => setComment(e.target.value)}
       />
       <div className="dislike-reason__footer">
-        <span className="dislike-reason__count">{reason.length}/{MAX_VOTE_REASON_LENGTH}</span>
+        <span className="dislike-reason__count">{comment.length}/{commentMaxLength}</span>
         <div className="dislike-reason__buttons">
           <button type="button" className="dislike-reason__btn" onClick={onCancel}>
             Hủy

@@ -284,6 +284,18 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
   display: flex; flex-direction: column; gap: 8px;
 }
 .dislike-reason__label { font-size: 12px; font-weight: 500; color: var(--sai-text); }
+.dislike-reason__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dislike-reason__chip {
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 12px; line-height: 1.4;
+  border: 1px solid var(--sai-border); background-color: var(--sai-bg); color: var(--sai-text);
+  transition: background-color var(--sai-transition), border-color var(--sai-transition);
+}
+.dislike-reason__chip:hover:not(:disabled) { border-color: var(--sai-border-focus); }
+.dislike-reason__chip.is-active { border-color: var(--sai-primary); background-color: color-mix(in srgb, var(--sai-primary) 12%, transparent); color: var(--sai-primary); }
+.dislike-reason__chip:disabled { opacity: 0.45; cursor: default; }
+.dislike-reason__chip:focus-visible { outline: 2px solid var(--sai-border-focus); outline-offset: 1px; }
+.dislike-reason__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dislike-reason__input {
   width: 100%; min-height: 64px; max-height: 160px; resize: vertical;
   padding: 8px 10px; box-sizing: border-box;

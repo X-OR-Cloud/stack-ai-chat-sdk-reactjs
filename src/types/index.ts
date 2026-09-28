@@ -103,9 +103,9 @@ export interface SDKConfig {
   socketPath?: string
 
   /**
-   * AIWM API base URL for client error telemetry (e.g. 'https://xsai-api.x-or.cloud/aiwm').
-   * When provided, SDK automatically sends structured error logs to the server.
-   * When omitted, telemetry is disabled.
+   * AIWM API base URL (e.g. 'https://xsai-api.x-or.cloud/aiwm'). Used for:
+   * - client error telemetry — disabled when omitted;
+   * - the vote feedback labels (`GET /reactions/reasons`) — a built-in copy is used when omitted.
    */
   apiUrl?: string
   /**
@@ -288,22 +288,45 @@ export interface VotingConfig {
   /** Show vote buttons under agent answers. Default: false (opt-in) */
   enabled?: boolean
   /**
-   * Ask for a reason before sending a dislike: clicking 👎 opens a textbox and the
-   * `reaction:toggle` event is only emitted once the user presses "Gửi". Default: true
+   * Ask for feedback before sending a dislike: clicking 👎 opens a form (reason labels +
+   * optional comment) and `reaction:toggle` is only emitted, with the feedback, once the user
+   * presses "Gửi". "Hủy" sends nothing. Default: true
    */
   dislikeReason?: boolean
 }
 
-/** Hard cap on the dislike reason length */
-export const MAX_VOTE_REASON_LENGTH = 500
+/** Server limits for reaction feedback (AIWM 26.10.42) — `GET /reactions/reasons` may override them */
+export const MAX_VOTE_COMMENT_LENGTH = 2000
+export const MAX_VOTE_REASONS = 5
 
-/** Payload emitted to the server as `reaction:toggle` */
+/** One feedback label from `GET /reactions/reasons` */
+export interface ReactionReason {
+  code: string
+  label: string
+  labelEn?: string
+  hint?: string
+}
+
+/** Feedback attached to a reaction. `comment: ''` / `reasons: []` clear the stored value */
+export interface ReactionFeedback {
+  comment?: string
+  reasons?: string[]
+}
+
+/**
+ * Payload emitted to the server as `reaction:toggle`.
+ * Toggle rule (AIWM 26.10.42): the request counts as "sending feedback" when the `comment`
+ * OR `reasons` KEY is present, even if empty. Same type + feedback → only the feedback is
+ * updated; same type without feedback → the reaction is removed.
+ */
 export interface ReactionTogglePayload {
   conversationId: string
   actionId: string
   type: VoteType
-  /** Free-text reason the user gave — only sent with a dislike, omitted when empty */
-  reason?: string
+  /** Free-text feedback, max 2000 chars */
+  comment?: string
+  /** Label codes from `GET /reactions/reasons`, max 5 */
+  reasons?: string[]
 }
 
 /** ACK returned for `reaction:toggle` */
@@ -318,6 +341,8 @@ export interface ReactionToggleAck {
   dislikes?: number
   /** Final state for the SENDER only. null when the vote was just removed */
   userReaction?: VoteType | null
+  /** The sender's own feedback after the operation (AIWM 26.10.42+). null = none */
+  userFeedback?: ReactionFeedback | null
 }
 
 /**
@@ -345,13 +370,32 @@ export interface VoteEvent {
   action: VoteAction
   likes?: number
   dislikes?: number
-  /** Reason the user typed for a dislike, if any */
+  /** Feedback comment sent with this vote, if any */
+  comment?: string
+  /** Feedback label codes sent with this vote, if any */
+  reasons?: string[]
+  /** @deprecated alias of `comment`, kept for hosts written against v0.16 */
   reason?: string
 }
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
 export type MessageRole = 'user' | 'assistant'
+
+/**
+ * Who produced an action (AIWM 26.10.16+). Prefer `actor.role` over the legacy top-level
+ * `role`, which folds `system` into `user`. Do not display `displayName`: on `message:new`
+ * it is still the raw agentId.
+ */
+export interface MessageActor {
+  role: 'user' | 'agent' | 'system'
+  userId?: string
+  agentId?: string
+  displayName?: string
+  externalProvider?: 'discord' | 'telegram'
+  externalId?: string
+  externalUsername?: string
+}
 export type MessageStatus = 'sending' | 'sent' | 'failed'
 export type MessageType = 'message' | 'system' | 'error' | 'tool_use' | 'tool_result' | 'thinking' | 'notice' | 'divider' | 'news'
 
@@ -382,8 +426,12 @@ export interface Message {
   /** Total votes from everyone — server-provided; the SDK never increments them itself */
   likes?: number
   dislikes?: number
+  /** The CURRENT user's own feedback on their vote — pre-fills the feedback form */
+  userFeedback?: ReactionFeedback | null
   /** Waiting for the server to confirm — locks the buttons against double submits */
   votePending?: boolean
+  /** Who produced this message, when the server sent it */
+  actor?: MessageActor
   /** Server-side metadata (PII redaction flag, etc.) */
   metadata?: MessageMetadata
 }

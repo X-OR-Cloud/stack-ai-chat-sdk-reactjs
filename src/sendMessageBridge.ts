@@ -1,4 +1,4 @@
-import type { SendMessagePayload, VoteType, ReactionTogglePayload, ReactionToggleAck } from './types'
+import type { SendMessagePayload, VoteType, ReactionFeedback, ReactionTogglePayload, ReactionToggleAck } from './types'
 
 type SendFn = (payload: SendMessagePayload) => void
 type ConnectFn = () => void
@@ -6,7 +6,7 @@ type TypingFn = (isTyping: boolean) => void
 type LoadOlderFn = () => void
 type UpdateTokenFn = (token: string) => void
 type GetTokenFn = () => string | null
-type VoteFn = (actionId: string, type: VoteType, reason?: string) => void
+type VoteFn = (actionId: string, type: VoteType, feedback?: string | ReactionFeedback) => void
 type ToggleReactionFn = (payload: ReactionTogglePayload, ack: (res: ReactionToggleAck | undefined) => void) => void
 
 
@@ -48,7 +48,7 @@ export function bridgeGetToken(): string | null { return _getTokenFn?.() ?? null
 
 export function registerVote(fn: VoteFn) { _voteFn = fn }
 export function unregisterVote() { _voteFn = null }
-export function bridgeVote(actionId: string, type: VoteType, reason?: string) { _voteFn?.(actionId, type, reason) }
+export function bridgeVote(actionId: string, type: VoteType, feedback?: string | ReactionFeedback) { _voteFn?.(actionId, type, feedback) }
 
 export function registerToggleReaction(fn: ToggleReactionFn) { _toggleReactionFn = fn }
 export function unregisterToggleReaction() { _toggleReactionFn = null }

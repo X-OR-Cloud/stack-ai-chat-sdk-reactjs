@@ -313,8 +313,8 @@ export function DemoApp() {
         }),
       onDisconnected: () => addLog('socket:disconnected', '🔌 Socket disconnected'),
       onVote: (e) =>
-        addLog('message:vote', `${e.vote === 'like' ? '👍' : e.vote === 'dislike' ? '👎' : '⊘'} vote ${e.action} → ${e.vote ?? 'gỡ'}  (${e.actionId.slice(-8)})${e.reason ? `  lý do: "${e.reason}"` : ''}`, {
-          actionId: e.actionId, vote: e.vote, action: e.action, reason: e.reason,
+        addLog('message:vote', `${e.vote === 'like' ? '👍' : e.vote === 'dislike' ? '👎' : '⊘'} vote ${e.action} → ${e.vote ?? 'gỡ'}  (${e.actionId.slice(-8)})${e.reasons?.length ? `  nhãn: ${e.reasons.join(', ')}` : ''}${e.comment ? `  góp ý: "${e.comment}"` : ''}`, {
+          actionId: e.actionId, vote: e.vote, action: e.action, comment: e.comment, reasons: e.reasons,
         }),
       onError: (msg, detail) => {
         const { serverOrigin, socketPath: effectivePath } = resolveSocketParams(wsUrl, socketPath.trim() || undefined)

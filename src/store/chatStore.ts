@@ -48,7 +48,7 @@ interface ChatState {
   failMessage: (localId: string) => void
   removeMessage: (localId: string) => void
   reconcileMessage: (localId: string, patch: Partial<Pick<Message, 'messageId' | 'content' | 'timestamp' | 'metadata'>>) => void
-  setReaction: (messageId: string, patch: Partial<Pick<Message, 'userReaction' | 'likes' | 'dislikes' | 'votePending'>>) => void
+  setReaction: (messageId: string, patch: Partial<Pick<Message, 'userReaction' | 'userFeedback' | 'likes' | 'dislikes' | 'votePending'>>) => void
   setAgentTyping: (typing: boolean) => void
   setWaitingForAgent: (waiting: boolean) => void
   setStreaming: (streaming: { actionId: string; content: string } | null) => void

@@ -220,7 +220,7 @@ Unmount the widget and clean up all resources.
 | `conversationId` | `string` | — | Resume a specific conversation. Omit for anonymous flow. |
 | `agentId` | `string` | — | Authenticated-user flow: emits `agent:connect` so the server find-or-creates the conversation. Anonymous tokens do not need it. |
 | `socketPath` | `string` | — | Socket.IO handshake path. Derived from `wsUrl` when omitted. |
-| `apiUrl` | `string` | — | AIWM API base URL for client error telemetry. Enables telemetry when provided. |
+| `apiUrl` | `string` | — | AIWM API base URL (e.g. `https://xsai-api.x-or.cloud/aiwm`). Enables error telemetry and loads the dislike feedback labels from `GET /reactions/reasons` (a built-in copy is used when omitted or when the request fails). |
 | `telemetry` | `boolean` | — | Enable/disable client error telemetry. Default: `true`. Set `false` to explicitly disable. |
 | `fields` | `FieldConfig[]` | — | Pre-chat form fields |
 | `session` | `SessionConfig` | — | Form session persistence |
@@ -475,12 +475,18 @@ Votes travel over the WebSocket event `reaction:toggle`, not the REST endpoint. 
 running on an anonymous token holds no valid JWT for REST, so `POST /aiwm/actions/:id/react`
 answers `401 Invalid token payload`; WebSocket is the only channel open to those clients.
 
-- Clicking 👎 opens a textbox asking for a reason. Nothing is sent until the user presses
-  **Gửi**; the event then carries `reason` (max 500 chars): `{ conversationId, actionId,
-  type: 'dislike', reason }`. **Hủy** or `Esc` sends nothing. Set `voting.dislikeReason: false`
-  to send dislikes immediately without asking.
+- Clicking 👎 opens a feedback form: reason labels (max 5, from `GET /reactions/reasons`) plus
+  an optional comment (max 2000 chars); at least one of the two is required. Nothing is sent
+  until **Gửi**, which sends the dislike and its feedback in one call:
+  `{ conversationId, actionId, type: 'dislike', comment, reasons }`. **Hủy** / `Esc` sends
+  nothing. While a dislike is active, a 💬 button reopens the form pre-filled with the viewer's
+  own feedback (`userFeedback` from history / the ACK); sending it only updates the feedback,
+  the dislike stays. Set `voting.dislikeReason: false` to send dislikes immediately without asking.
+- `StackAIChat.vote(actionId, type, feedback?)` takes `{ comment?, reasons? }` (a plain string is
+  treated as `comment`). `onVote` receives `comment` / `reasons` (`reason` is kept as a
+  deprecated alias of `comment`).
 - Clicking the button that is already active removes the vote — the server decides, the SDK
-  never derives the result locally.
+  never derives the result locally. `reaction:updated` broadcasts refresh the counts.
 - The initial state arrives inside `conversation:history`, so a vote survives a page reload
   with no extra request.
 - Buttons lock until the server acknowledges, and a failed acknowledgement rolls the button
