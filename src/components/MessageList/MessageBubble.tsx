@@ -1,10 +1,13 @@
-import type { Message, AttachmentItem } from '../../types'
+import type { Message, AttachmentItem, ReactionFeedback } from '../../types'
 import { renderMarkdown } from '../../utils/renderMarkdown'
 import { SourcesPanel } from './SourcesPanel'
 import { CollapsibleBlock } from './CollapsibleBlock'
 import { NoticeBanner } from './NoticeBanner'
+import { useEffect, useState } from 'react'
 import { NewsCards } from './NewsCards'
 import { VoteButtons } from './VoteButtons'
+import { DislikeReasonForm } from './DislikeReasonForm'
+import { bridgeVote } from '../../sendMessageBridge'
 import { CopyButton } from './CopyButton'
 import { useChatStore } from '../../store/chatStore'
 
@@ -43,6 +46,49 @@ const COLLAPSIBLE_META: Record<string, { icon: string; label: string }> = {
   thinking:    { icon: '💭', label: 'Thinking' },
   tool_use:    { icon: '🔧', label: 'Tool Call' },
   tool_result: { icon: '📋', label: 'Tool Result' },
+}
+
+/** Timestamp + action buttons under an agent answer, plus the dislike feedback form */
+function AssistantFooter({ message }: { message: Message }) {
+  // 'new': the dislike is not cast yet — "Gửi" sends it together with the feedback.
+  // 'edit': the dislike exists — "Gửi" only updates its feedback (same type + feedback).
+  const [formMode, setFormMode] = useState<'new' | 'edit' | null>(null)
+  const disliked = message.userReaction === 'dislike'
+  const pending = !!message.votePending
+
+  // Editing feedback only makes sense while the dislike exists: close once it is removed
+  useEffect(() => {
+    if (formMode === 'edit' && !pending && !disliked) setFormMode(null)
+  }, [formMode, pending, disliked])
+
+  function handleSubmit(feedback: ReactionFeedback) {
+    setFormMode(null)
+    if (message.messageId) bridgeVote(message.messageId, 'dislike', feedback)
+  }
+
+  return (
+    <>
+      <div className="message-meta">
+        <span className="message-time">{formatTime(message.timestamp)}</span>
+        <div className="message-actions">
+          <CopyButton message={message} />
+          <VoteButtons
+            message={message}
+            reasonOpen={formMode !== null}
+            onDislikeReasonRequest={() => setFormMode(disliked ? 'edit' : 'new')}
+          />
+        </div>
+      </div>
+      {formMode && (
+        <DislikeReasonForm
+          initial={formMode === 'edit' ? message.userFeedback : null}
+          pending={pending}
+          onSubmit={handleSubmit}
+          onCancel={() => setFormMode(null)}
+        />
+      )}
+    </>
+  )
 }
 
 interface MessageBubbleProps {
@@ -148,13 +194,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <SourcesPanel sources={message.sources} mode={referenceDisplay === 'url' ? 'url' : 'full'} />
       )}
 
-      <div className="message-meta">
-        <span className="message-time">{formatTime(message.timestamp)}</span>
-        <div className="message-actions">
-          <CopyButton message={message} />
-          <VoteButtons message={message} />
-        </div>
-      </div>
+      <AssistantFooter message={message} />
     </div>
   )
 }

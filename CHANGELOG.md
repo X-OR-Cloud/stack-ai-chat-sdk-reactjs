@@ -8,6 +8,23 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 >
 > Lịch sử trước ngày hôm nay **không được ghi lại hồi tố** ở đây — không phải mọi bản cũ đều có git tag tương ứng (`0.3.0, 0.4.0, 0.8.0, 0.9.0, 0.10.x, 0.11.0, 0.12.0` không có tag), nên viết lại chi tiết từng bản sẽ phải suy đoán một phần. Ai cần lịch sử đầy đủ, tra `git log --oneline` trực tiếp trong repo — đó là nguồn chính xác, tài liệu này không lặp lại để tránh lệch.
 
+## [Unreleased]
+
+### Changed
+- **Góp ý dislike theo AIWM `26.10.42`:** `reaction:toggle` gửi `comment` (tối đa 2000 ký tự) + `reasons` (mã nhãn, tối đa 5) thay cho `reason` — BE không nhận `reason`, nên lý do nhập ở `0.16.1` không được lưu. Form chọn nhãn + góp ý thay cho ô nhập tự do (phải chọn ít nhất 1 nhãn hoặc nhập góp ý). Vẫn giữ luồng cũ: bấm 👎 chỉ mở form, bấm **Gửi** mới gửi dislike kèm góp ý trong một lần gọi, **Hủy** không gửi gì. Mới: khi đang dislike có nút 💬 mở lại form (điền sẵn `userFeedback` từ history/ACK) để sửa góp ý mà không gỡ dislike.
+- Bộ nhãn lấy từ `GET {apiUrl}/reactions/reasons?type=dislike`; không có `apiUrl` hoặc request lỗi (token anonymous) → dùng bản sao dựng sẵn trong SDK.
+- `StackAIChat.vote(actionId, type, feedback?)` nhận `string | { comment?, reasons? }` (chuỗi = `comment`, tương thích ngược). `onVote` thêm `comment`, `reasons`; `reason` giữ lại như alias deprecated.
+- Đọc `actor.role` (AIWM `26.10.16`) khi có, fallback `role` cũ; `actor.role: 'system'` được xử lý như phía assistant. `Message.actor` được giữ lại.
+
+### Added
+- Lắng nghe `reaction:updated` để cập nhật `likes` / `dislikes`.
+- Export type `ReactionFeedback`, `ReactionReason`, `MessageActor`.
+
+## [0.16.1] - 2026-09-26
+
+### Added
+- **Hỏi lý do khi dislike:** bấm 👎 mở ô nhập lý do ngay dưới câu trả lời; chỉ khi bấm **Gửi** mới emit `reaction:toggle` với payload `{ conversationId, actionId, type: 'dislike', reason }`. Bấm **Hủy** / `Esc` thì không gửi gì. Lý do bắt buộc nhập, tối đa 500 ký tự, `Ctrl/⌘+Enter` để gửi. Gỡ dislike (bấm lại 👎 đang sáng) vẫn gửi ngay, không hỏi. Tắt bằng `voting.dislikeReason: false`. `onVote` nhận thêm `reason`, `StackAIChat.vote(actionId, type, reason?)` nhận thêm tham số `reason`.
+
 ## [0.16.0] - 2026-09-21
 
 ### Added

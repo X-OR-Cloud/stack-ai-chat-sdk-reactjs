@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { bridgeToggleReaction, bridgeGetToken } from '../sendMessageBridge'
 import { redactValue, truncateForDisplay } from '../utils/redact'
-import type { VoteType, ReactionToggleAck } from '../types'
+import { MAX_VOTE_COMMENT_LENGTH, MAX_VOTE_REASONS } from '../types'
+import type { VoteType, ReactionFeedback, ReactionToggleAck, ReactionTogglePayload } from '../types'
 
 /**
  * `actionId` is the message `_id`. Rejecting malformed ids on the client keeps the
@@ -38,6 +39,42 @@ function isFatalError(error: string | undefined): boolean {
   return !!error && FATAL_ERROR_PATTERNS.some((re) => re.test(error))
 }
 
+/**
+ * Keeps only the keys the caller passed: the server treats the mere PRESENCE of `comment`
+ * or `reasons` as "sending feedback", and an empty value as "clear it". A plain string is
+ * the pre-26.10.42 `reason` argument and becomes the comment.
+ */
+export function normalizeFeedback(feedback: string | ReactionFeedback | undefined): ReactionFeedback | undefined {
+  if (feedback === undefined) return undefined
+  if (typeof feedback === 'string') {
+    const comment = feedback.trim().slice(0, MAX_VOTE_COMMENT_LENGTH)
+    return comment ? { comment } : undefined
+  }
+  const out: ReactionFeedback = {}
+  if (feedback.comment !== undefined) out.comment = feedback.comment.trim().slice(0, MAX_VOTE_COMMENT_LENGTH)
+  if (feedback.reasons !== undefined) out.reasons = [...new Set(feedback.reasons)].slice(0, MAX_VOTE_REASONS)
+  return 'comment' in out || 'reasons' in out ? out : undefined
+}
+
+/**
+ * Feedback state after a toggle. Servers from 26.10.42 return `userFeedback` in the ACK;
+ * older ones do not, so mirror the toggle rule locally instead.
+ */
+function resolveFeedback(
+  ack: ReactionToggleAck,
+  confirmed: VoteType | null,
+  previous: VoteType | null,
+  previousFeedback: ReactionFeedback | null,
+  sent: ReactionFeedback | undefined,
+): ReactionFeedback | null {
+  if ('userFeedback' in ack) return ack.userFeedback ?? null
+  if (!confirmed) return null
+  // Same type: keys that were sent overwrite, keys that were not are kept
+  if (confirmed === previous) return sent ? { ...previousFeedback, ...sent } : previousFeedback
+  // Type changed: feedback written for the other type is dropped
+  return sent ?? null
+}
+
 export function useVote() {
   const config = useChatStore((s) => s.config)
   const setReaction = useChatStore((s) => s.setReaction)
@@ -54,7 +91,7 @@ export function useVote() {
     else console.error('[SDKChat]', safeMessage, safeDetail ?? '')
   }, [config])
 
-  const vote = useCallback((actionId: string, type: VoteType) => {
+  const vote = useCallback((actionId: string, type: VoteType, rawFeedback?: string | ReactionFeedback) => {
     if (!config?.voting?.enabled) return
     if (!isVotableId(actionId)) return
 
@@ -71,15 +108,18 @@ export function useVote() {
     if (now - lastToggleAt < MIN_TOGGLE_INTERVAL_MS) return
     lastToggleAt = now
 
+    const feedback = normalizeFeedback(rawFeedback)
     const previous = target.userReaction ?? null
-    // Predict the server's toggle rule (§5) so the UI responds instantly, but the FINAL
-    // state always comes from the ACK — never derived locally.
-    const optimistic: VoteType | null = previous === type ? null : type
+    const previousFeedback = target.userFeedback ?? null
+    // Predict the server's toggle rule so the UI responds instantly, but the FINAL state
+    // always comes from the ACK — never derived locally. Same type WITH feedback only edits
+    // the feedback; same type WITHOUT feedback removes the vote.
+    const optimistic: VoteType | null = previous === type && !feedback ? null : type
 
     setReaction(actionId, { userReaction: optimistic, votePending: true })
 
     let settled = false
-    const rollback = () => setReaction(actionId, { userReaction: previous, votePending: false })
+    const rollback = () => setReaction(actionId, { userReaction: previous, userFeedback: previousFeedback, votePending: false })
 
     const timer = setTimeout(() => {
       if (settled) return
@@ -92,7 +132,9 @@ export function useVote() {
       reportError('Không gửi được vote: server không phản hồi sau 10s')
     }, ACK_TIMEOUT_MS)
 
-    bridgeToggleReaction({ conversationId, actionId, type }, (ack: ReactionToggleAck | undefined) => {
+    const payload: ReactionTogglePayload = { conversationId, actionId, type, ...feedback }
+
+    bridgeToggleReaction(payload, (ack: ReactionToggleAck | undefined) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -110,6 +152,7 @@ export function useVote() {
       const confirmed = ack.userReaction ?? null
       setReaction(actionId, {
         userReaction: confirmed,
+        userFeedback: resolveFeedback(ack, confirmed, previous, previousFeedback, feedback),
         ...(typeof ack.likes === 'number' ? { likes: ack.likes } : {}),
         ...(typeof ack.dislikes === 'number' ? { dislikes: ack.dislikes } : {}),
         votePending: false,
@@ -120,6 +163,8 @@ export function useVote() {
         action: ack.resultAction ?? 'created',
         likes: ack.likes,
         dislikes: ack.dislikes,
+        ...(feedback?.comment !== undefined ? { comment: feedback.comment, reason: feedback.comment } : {}),
+        ...(feedback?.reasons !== undefined ? { reasons: feedback.reasons } : {}),
       })
     })
   }, [config, setReaction, setVotingUnavailable, reportError])

@@ -5,10 +5,15 @@ import type { Message, VoteType } from '../../types'
 
 interface VoteButtonsProps {
   message: Message
+  /** Opens the feedback form — before casting a new dislike, or to edit existing feedback */
+  onDislikeReasonRequest?: () => void
+  /** The feedback form is open — keep 👎 highlighted while the user fills it in */
+  reasonOpen?: boolean
 }
 
-export function VoteButtons({ message }: VoteButtonsProps) {
+export function VoteButtons({ message, onDislikeReasonRequest, reasonOpen = false }: VoteButtonsProps) {
   const enabled = useChatStore((s) => !!s.config?.voting?.enabled)
+  const askReason = useChatStore((s) => s.config?.voting?.dislikeReason !== false)
   const votingUnavailable = useChatStore((s) => s.votingUnavailable)
 
   // Only messages carrying a real server `_id` can be voted on: this rules out the greeting
@@ -23,8 +28,16 @@ export function VoteButtons({ message }: VoteButtonsProps) {
   // shares it instead of building its own callbacks and config subscription.
   function handleClick(type: VoteType) {
     if (pending || !message.messageId) return
+    // A NEW dislike opens the form; nothing is sent until "Gửi", which sends the dislike and
+    // its feedback in one call. Clicking the active 👎 removes it straight away.
+    if (type === 'dislike' && current !== 'dislike' && askReason && onDislikeReasonRequest) {
+      onDislikeReasonRequest()
+      return
+    }
     bridgeVote(message.messageId, type)
   }
+
+  const canEditFeedback = askReason && current === 'dislike' && !reasonOpen && !!onDislikeReasonRequest
 
   return (
     <>
@@ -45,10 +58,11 @@ export function VoteButtons({ message }: VoteButtonsProps) {
 
       <button
         type="button"
-        className={`msg-action-btn vote-btn${current === 'dislike' ? ' is-active is-dislike' : ''}`}
+        className={`msg-action-btn vote-btn${current === 'dislike' || reasonOpen ? ' is-active is-dislike' : ''}`}
         onClick={() => handleClick('dislike')}
-        disabled={pending}
+        disabled={pending || (reasonOpen && current !== 'dislike')}
         aria-pressed={current === 'dislike'}
+        aria-expanded={askReason && current !== 'dislike' ? reasonOpen : undefined}
         aria-label={current === 'dislike' ? 'Bỏ đánh giá chưa tốt' : 'Câu trả lời chưa tốt'}
         title={current === 'dislike' ? 'Bỏ đánh giá chưa tốt' : 'Câu trả lời chưa tốt'}
       >
@@ -57,6 +71,21 @@ export function VoteButtons({ message }: VoteButtonsProps) {
           <path d="M17 14l-4.2 7.1a1.6 1.6 0 0 1-2.9-1.1l.6-5h-5.1a2 2 0 0 1-1.95-2.45l1.6-7A2 2 0 0 1 7 4h10" />
         </svg>
       </button>
+
+      {canEditFeedback && (
+        <button
+          type="button"
+          className="msg-action-btn"
+          onClick={onDislikeReasonRequest}
+          disabled={pending}
+          aria-label={message.userFeedback ? 'Sửa góp ý' : 'Thêm góp ý'}
+          title={message.userFeedback ? 'Sửa góp ý' : 'Thêm góp ý'}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+      )}
     </>
   )
 }

@@ -276,6 +276,49 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; bord
 .vote-btn.is-active.is-dislike svg { fill: color-mix(in srgb, var(--sai-error) 18%, transparent); }
 .copy-btn.is-active { opacity: 1; color: var(--sai-online); }
 
+/* ── Dislike reason form ─────────────────────────────────────────────────── */
+.dislike-reason {
+  width: 100%; margin-top: 6px; padding: 10px;
+  border: 1px solid var(--sai-border); border-radius: var(--sai-radius-sm);
+  background-color: var(--sai-surface);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.dislike-reason__label { font-size: 12px; font-weight: 500; color: var(--sai-text); }
+.dislike-reason__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dislike-reason__chip {
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 12px; line-height: 1.4;
+  border: 1px solid var(--sai-border); background-color: var(--sai-bg); color: var(--sai-text);
+  transition: background-color var(--sai-transition), border-color var(--sai-transition);
+}
+.dislike-reason__chip:hover:not(:disabled) { border-color: var(--sai-border-focus); }
+.dislike-reason__chip.is-active { border-color: var(--sai-primary); background-color: color-mix(in srgb, var(--sai-primary) 12%, transparent); color: var(--sai-primary); }
+.dislike-reason__chip:disabled { opacity: 0.45; cursor: default; }
+.dislike-reason__chip:focus-visible { outline: 2px solid var(--sai-border-focus); outline-offset: 1px; }
+.dislike-reason__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.dislike-reason__input {
+  width: 100%; min-height: 64px; max-height: 160px; resize: vertical;
+  padding: 8px 10px; box-sizing: border-box;
+  border: 1px solid var(--sai-border); border-radius: var(--sai-radius-xs);
+  background-color: var(--sai-bg); color: var(--sai-text);
+  font: inherit; font-size: 13px; line-height: 1.5;
+}
+.dislike-reason__input:focus { outline: none; border-color: var(--sai-border-focus); }
+.dislike-reason__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dislike-reason__count { font-size: 11px; color: var(--sai-text-muted); }
+.dislike-reason__buttons { display: flex; gap: 6px; }
+.dislike-reason__btn {
+  padding: 5px 12px; border-radius: var(--sai-radius-xs);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--sai-border); background: transparent; color: var(--sai-text);
+  transition: background-color var(--sai-transition), opacity var(--sai-transition);
+}
+.dislike-reason__btn:hover:not(:disabled) { background-color: var(--sai-surface-hover); }
+.dislike-reason__btn--primary { border-color: var(--sai-primary); background-color: var(--sai-primary); color: #fff; }
+.dislike-reason__btn--primary:hover:not(:disabled) { background-color: var(--sai-primary); opacity: 0.9; }
+.dislike-reason__btn:disabled { opacity: 0.5; cursor: default; }
+.dislike-reason__btn:focus-visible { outline: 2px solid var(--sai-border-focus); outline-offset: 1px; }
+
 /* Desktop: reveal on hover so the list stays uncluttered.
    An active state (a cast vote, the "copied" tick) stays visible. */
 @media (hover: hover) and (pointer: fine) {

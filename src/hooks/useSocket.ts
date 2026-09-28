@@ -13,7 +13,11 @@ import { redactValue, truncateForDisplay } from '../utils/redact'
 import { telemetry } from '../services/telemetry'
 import type {
   Message,
+  MessageActor,
+  MessageRole,
   MessageSource,
+  ReactionFeedback,
+  ReactionUpdatedPayload,
   VoteType,
   ReactionTogglePayload,
   ReactionToggleAck,
@@ -60,7 +64,9 @@ interface ServerMessage {
   _id?: string
   messageId?: string
   conversationId?: string
+  /** Legacy 2-value role. Prefer `actor.role` — see resolveRole() */
   role: 'user' | 'assistant'
+  actor?: MessageActor
   content?: string
   type?: string
   createdAt?: string
@@ -119,6 +125,37 @@ function toVoteType(value: unknown): VoteType | null {
   return null
 }
 
+/**
+ * AIWM 26.10.16 sends `actor` alongside the legacy `role`, which is going away. Read
+ * `actor.role` when present. `system` has no legacy equivalent (the server folds it into
+ * `user`); it is never a user echo, so treat it as coming from the assistant side.
+ */
+function resolveRole(payload: ServerMessage): MessageRole {
+  switch (payload.actor?.role) {
+    case 'agent':
+    case 'system':
+      return 'assistant'
+    case 'user':
+      return 'user'
+    default:
+      return payload.role
+  }
+}
+
+function withResolvedRole(payload: ServerMessage): ServerMessage {
+  const role = resolveRole(payload)
+  return role === payload.role ? payload : { ...payload, role }
+}
+
+function toFeedback(value: unknown): ReactionFeedback | null {
+  if (!value || typeof value !== 'object') return null
+  const v = value as Record<string, unknown>
+  const out: ReactionFeedback = {}
+  if (typeof v.comment === 'string') out.comment = v.comment
+  if (Array.isArray(v.reasons)) out.reasons = v.reasons.filter((r): r is string => typeof r === 'string')
+  return out.comment || out.reasons?.length ? out : null
+}
+
 function toCount(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
@@ -129,13 +166,15 @@ function toCount(value: unknown): number | undefined {
  * message carries `{ likes, dislikes, userReaction }`), with no complete JSON example.
  * Read both shapes rather than guessing one and silently losing vote state after a reload.
  */
-function extractReaction(payload: ServerMessage): Pick<Message, 'userReaction' | 'likes' | 'dislikes'> {
+function extractReaction(payload: ServerMessage): Pick<Message, 'userReaction' | 'userFeedback' | 'likes' | 'dislikes'> {
   const nested = (payload.reactions && typeof payload.reactions === 'object')
     ? payload.reactions as Record<string, unknown>
     : null
 
   return {
     userReaction: toVoteType(payload.userReaction ?? nested?.userReaction),
+    // Only ever the viewer's OWN feedback (AIWM 26.10.42) — pre-fills the feedback form
+    userFeedback: toFeedback(nested?.userFeedback),
     likes: toCount(payload.likes ?? nested?.likes),
     dislikes: toCount(payload.dislikes ?? nested?.dislikes),
   }
@@ -145,7 +184,7 @@ function mapServerMessage(payload: ServerMessage): Message {
   return {
     messageId: payload._id ?? payload.messageId,
     conversationId: payload.conversationId,
-    role: payload.role,
+    role: resolveRole(payload),
     content: payload.content ?? '',
     type: (payload.type as Message['type']) || 'message',
     status: 'sent',
@@ -153,6 +192,7 @@ function mapServerMessage(payload: ServerMessage): Message {
     sources: payload.sources ?? [],
     timestamp: payload.createdAt ?? payload.timestamp,
     metadata: payload.metadata,
+    ...(payload.actor ? { actor: payload.actor } : {}),
     ...extractReaction(payload),
   }
 }
@@ -271,6 +311,7 @@ export function useSocket() {
       }
 
       const messages = rawMessages
+        .map(withResolvedRole)
         .filter((m) => isTypeVisible(m.type, allowedTypes))
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .filter((m) => !m.skipAgent)
@@ -611,9 +652,22 @@ export function useSocket() {
       setStreaming({ actionId: payload.actionId, content })
     })
 
-    socket.on('message:new', (payload: ServerMessage) => {
+    // Someone in the room reacted. Only the counts apply to this client: `type` belongs to
+    // whoever clicked, and the sender's own state already came back in its ACK.
+    socket.on('reaction:updated', (payload: ReactionUpdatedPayload) => {
+      if (!payload?.actionId) return
+      const likes = toCount(payload.likes)
+      const dislikes = toCount(payload.dislikes)
+      useChatStore.getState().setReaction(payload.actionId, {
+        ...(likes !== undefined ? { likes } : {}),
+        ...(dislikes !== undefined ? { dislikes } : {}),
+      })
+    })
+
+    socket.on('message:new', (raw: ServerMessage) => {
       // Debug: emit raw payload for inspection
-      config.onRawMessage?.(payload as unknown as Record<string, unknown>)
+      config.onRawMessage?.(raw as unknown as Record<string, unknown>)
+      const payload = withResolvedRole(raw)
 
       // 1. Dedup
       const id = payload._id ?? payload.messageId

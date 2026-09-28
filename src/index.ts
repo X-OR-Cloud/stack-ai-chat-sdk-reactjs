@@ -9,12 +9,12 @@ import {
   bridgeVote, unregisterVote, unregisterGetToken,
 } from './sendMessageBridge'
 import { createShadowHost, setTheme, watchSystemTheme } from './utils/shadowDom'
-import type { SDKConfig, SendMessagePayload, VoteType } from './types'
+import type { SDKConfig, SendMessagePayload, VoteType, ReactionFeedback } from './types'
 import { SDK_VERSION } from './version'
 import { telemetry } from './services/telemetry'
 
 // Re-export types for consumers
-export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageMetadata, NewsItem, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload } from './types'
+export type { SDKConfig, FieldConfig, ThemeConfig, AttachmentsConfig, SessionConfig, CustomStylesConfig, MessageType, Message, MessageMetadata, NewsItem, MessageReference, SendMessagePayload, VoteType, VoteAction, VotingConfig, StreamingConfig, VoteEvent, ReactionTogglePayload, ReactionToggleAck, ReactionUpdatedPayload, ReactionFeedback, ReactionReason, MessageActor } from './types'
 
 let root: Root | null = null
 let hostEl: HTMLElement | null = null
@@ -146,9 +146,14 @@ export const StackAIChat = {
    * The server toggles: sending the type that is already set removes the vote.
    * Goes over the WS `reaction:toggle` event.
    * Only runs when `config.voting.enabled` is set and the socket is connected.
+   *
+   * `feedback` attaches a comment (max 2000 chars) and/or reason codes from
+   * `GET /reactions/reasons` (max 5). A plain string is treated as the comment.
+   * When feedback is passed and the vote already has that type, the server only updates
+   * the feedback instead of removing the vote.
    */
-  vote(actionId: string, type: VoteType): void {
-    bridgeVote(actionId, type)
+  vote(actionId: string, type: VoteType, feedback?: string | ReactionFeedback): void {
+    bridgeVote(actionId, type, feedback)
   },
 
   /** Refresh JWT (e.g. sau khi IAM cấp accessToken mới) — reconnect với token mới */
