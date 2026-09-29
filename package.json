@@ -29,9 +29,9 @@
     "verify:dist": "node scripts/verify-dist-version.mjs",
     "prepublishOnly": "npm run build && npm run verify:dist",
     "publish:npm": "npm publish --access public",
-    "release:patch": "npm version patch --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
-    "release:minor": "npm version minor --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
-    "release:major": "npm version major --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags"
+    "release:patch": "npm version patch --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag -a v$(node -p \"require('./package.json').version\") -m \"v$(node -p \"require('./package.json').version\")\" && git push --follow-tags",
+    "release:minor": "npm version minor --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag -a v$(node -p \"require('./package.json').version\") -m \"v$(node -p \"require('./package.json').version\")\" && git push --follow-tags",
+    "release:major": "npm version major --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag -a v$(node -p \"require('./package.json').version\") -m \"v$(node -p \"require('./package.json').version\")\" && git push --follow-tags"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
