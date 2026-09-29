@@ -149,11 +149,13 @@ StackAIChat.init({
 ## API
 
 ### `StackAIChat.version`
-Read-only string containing the current SDK version. Useful for debugging when integrating into consumer apps.
+Read-only string containing the current SDK version, injected at build time from `package.json`. Useful for debugging when integrating into consumer apps.
 
 ```ts
-console.log(StackAIChat.version) // e.g. "0.11.0"
+console.log(StackAIChat.version) // e.g. "0.16.2"
 ```
+
+`package.json` is exported, so you can cross-check it: `import pkg from '@xorcloud/stack-ai-chat-sdk/package.json'`.
 
 ### `StackAIChat.init(config)`
 Initialize and mount the chat widget. Can only be called once — call `destroy()` first to re-initialize. Logs `[StackAIChat] SDK v<version>` to the console on startup.

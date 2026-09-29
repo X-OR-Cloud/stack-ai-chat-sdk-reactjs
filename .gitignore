@@ -8,6 +8,7 @@ demo-dist/
 .scripts/*
 scripts/*
 !scripts/deploy-demo.mjs
+!scripts/verify-dist-version.mjs
 test
 test/*
 

@@ -11,7 +11,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.umd.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
@@ -25,11 +26,12 @@
     "preview:demo": "vite preview --config demo/vite.demo.config.ts --outDir demo-dist",
     "deploy:demo": "NODE_ENV=production npm run build:demo && node scripts/deploy-demo.mjs",
     "type-check": "tsc --noEmit",
+    "verify:dist": "node scripts/verify-dist-version.mjs",
+    "prepublishOnly": "npm run build && npm run verify:dist",
     "publish:npm": "npm publish --access public",
-    "sync-version": "node -e \"const fs = require('fs'); const pkg = require('./package.json'); fs.writeFileSync('src/version.ts', 'export const SDK_VERSION = ' + JSON.stringify(pkg.version) + ';\\n');\"",
-    "release:patch": "npm version patch --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
-    "release:minor": "npm version minor --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
-    "release:major": "npm version major --no-git-tag-version && npm run sync-version && npm run build && npm publish --access public && git add package.json package-lock.json src/version.ts && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags"
+    "release:patch": "npm version patch --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
+    "release:minor": "npm version minor --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags",
+    "release:major": "npm version major --no-git-tag-version && npm publish --access public && git add package.json package-lock.json && git commit -m \"chore: release $(node -p \"require('./package.json').version\")\" && git tag v$(node -p \"require('./package.json').version\") && git push --follow-tags"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

@@ -16,7 +16,13 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 - `StackAIChat.vote(actionId, type, feedback?)` nhận `string | { comment?, reasons? }` (chuỗi = `comment`, tương thích ngược). `onVote` thêm `comment`, `reasons`; `reason` giữ lại như alias deprecated.
 - Đọc `actor.role` (AIWM `26.10.16`) khi có, fallback `role` cũ; `actor.role: 'system'` được xử lý như phía assistant. `Message.actor` được giữ lại.
 
+### Fixed
+- **`StackAIChat.version` báo `"0.15.0"` ở các bản `0.15.2`, `0.16.0`, `0.16.1` trên npm.** Nguyên nhân: các bản này được `npm publish` trên một `dist/` build từ trước (thời `0.15.0`) mà không build lại — không chỉ con số version sai, **toàn bộ code trong bundle là code cũ** (sourcemap bản `0.16.1` không có `telemetry.ts`, `DislikeReasonForm.tsx`, `NewsCards.tsx`). Tính năng telemetry / news cards / dislike reason của `0.16.x` thực tế chưa từng lên npm.
+  - Version giờ được inject lúc build qua `define` (`__SDK_VERSION__`) đọc từ `package.json`; bỏ script `sync-version`, không còn sửa `src/version.ts` bằng tay.
+  - Thêm `prepublishOnly`: `npm run build && npm run verify:dist` — mọi đường publish (`release:*`, `publish:npm`, `npm publish` tay) đều build lại và bị chặn nếu `dist/` không chứa đúng version trong `package.json`.
+
 ### Added
+- Export `./package.json` để app (Vite/rolldown) import được `@xorcloud/stack-ai-chat-sdk/package.json`.
 - Lắng nghe `reaction:updated` để cập nhật `likes` / `dislikes`.
 - Export type `ReactionFeedback`, `ReactionReason`, `MessageActor`.
 
