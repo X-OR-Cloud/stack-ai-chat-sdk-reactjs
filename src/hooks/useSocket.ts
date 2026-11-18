@@ -25,6 +25,8 @@ import type {
   PresenceUpdatePayload,
   MessageSentPayload,
   SendMessagePayload,
+  ConversationClosedPayload,
+  ConversationClosedInfo,
 } from '../types'
 
 let typingTimeout: ReturnType<typeof setTimeout> | null = null
@@ -76,8 +78,8 @@ interface ServerMessage {
   isFinal?: boolean
   attachments?: Message['attachments']
   sources?: MessageSource[]
-  /** Server-side metadata (PII redaction, etc.) */
-  metadata?: { piiRedacted?: boolean }
+  /** Server-side metadata (PII redaction, closing notice, etc.) */
+  metadata?: Message['metadata']
   /** Reactions embedded in conversation:history. The docs describe this in two places
    *  with two different shapes — read both, see extractReaction(). */
   reactions?: unknown
@@ -103,6 +105,119 @@ interface JoinAck {
   success: boolean
   conversationId?: string
   error?: string
+}
+
+/** conv:list item — `status` / `closedAt` exist from AIWM 1.139.0-rc2 */
+interface ConvListItem {
+  conversationId?: string
+  id?: string
+  _id?: string
+  status?: string
+  closedAt?: string | null
+}
+
+interface ConvListResponse {
+  conversations?: ConvListItem[]
+  data?: { conversations?: ConvListItem[] } | ConvListItem[]
+}
+
+/** conv:new ack. The exact shape is not documented yet — read every plausible spot. */
+interface ConvNewAck {
+  success?: boolean
+  error?: string
+  conversationId?: string
+  id?: string
+  _id?: string
+  conversation?: { id?: string; _id?: string; conversationId?: string }
+  data?: { id?: string; _id?: string; conversationId?: string }
+}
+
+const ACK_TIMEOUT_MS = 10_000
+
+function extractConversationId(res: ConvNewAck | undefined): string | null {
+  if (!res || res.success === false) return null
+  const id = res.conversationId ?? res.conversation?.conversationId ?? res.conversation?.id
+    ?? res.conversation?._id ?? res.data?.conversationId ?? res.data?.id ?? res.data?._id
+    ?? res.id ?? res._id
+  return typeof id === 'string' && id ? id : null
+}
+
+/** null = this payload carries no list (e.g. the bare `{ success: true }` ack) */
+function convListItems(res: ConvListResponse | undefined): ConvListItem[] | null {
+  if (!res) return null
+  if (Array.isArray(res.conversations)) return res.conversations
+  if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res.data?.conversations)) return res.data.conversations
+  return null
+}
+
+/**
+ * conv:* request (doc FRONTEND-CHAT-INTEGRATION "Multi-Conversation"): the result comes back
+ * through the ack AND/OR a server event of the same name — depending on the gateway version,
+ * `conv:list` acks only `{ success: true }` and sends the list as an event. Errors arrive as
+ * `{ success: false, error }` on the ack or as `conv:error { code, message }`.
+ * `pick` returns null for a payload without the result, so the other channel can still win.
+ */
+function requestConv<T>(
+  socket: Socket,
+  event: string,
+  payload: Record<string, unknown>,
+  errorCode: string,
+  pick: (res: unknown) => T | null,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      socket.off(event, onEvent)
+      socket.off('conv:error', onError)
+      fn()
+    }
+    const onEvent = (res: unknown) => {
+      const v = pick(res)
+      if (v !== null) settle(() => resolve(v))
+    }
+    const onError = (e: { code?: string; message?: string } | undefined) => {
+      if (e?.code && e.code !== errorCode) return // lỗi của một conv:* khác
+      settle(() => reject(new Error(`${e?.code ?? 'conv:error'}: ${e?.message ?? ''}`)))
+    }
+    const timer = setTimeout(() => settle(() => reject(new Error(`${event} không phản hồi`))), ACK_TIMEOUT_MS)
+    socket.on(event, onEvent)
+    socket.on('conv:error', onError)
+    socket.emit(event, payload, (res: { success?: boolean; error?: string } | undefined) => {
+      if (res?.success === false) settle(() => reject(new Error(res.error || `${event} thất bại`)))
+      else onEvent(res)
+    })
+  })
+}
+
+/** "Phiên đã kết thúc lúc 10:28 18/11/2026", or without the time when closedAt is unknown */
+export function closedDividerLabel(closedAt: string | null | undefined): string {
+  const t = closedAt ? Date.parse(closedAt) : NaN
+  if (Number.isNaN(t)) return 'Phiên đã kết thúc'
+  const d = new Date(t)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `Phiên đã kết thúc lúc ${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+function makeDivider(label: string, kind: string): Message {
+  return {
+    localId: `divider_${kind}_${Date.now()}`,
+    role: 'assistant',
+    content: label,
+    type: 'divider',
+    status: 'sent',
+    attachments: [],
+    sources: [],
+  }
+}
+
+/** SDK-injected items that only make sense at the tail of a live conversation */
+function isTailDecoration(m: Message): boolean {
+  const id = m.localId ?? ''
+  return id.startsWith('divider_') || id.startsWith('greeting_') || id.startsWith('news_')
 }
 
 function isHiddenByPattern(content: string | undefined, patterns: RegExp[]): boolean {
@@ -229,6 +344,12 @@ export function useSocket() {
   const chunksRef = useRef<Map<string, Map<number, string>>>(new Map())
   // Cursor phân trang history: _id của message cũ nhất đã load
   const historyCursorRef = useRef<string | null>(null)
+  // Hội thoại đã rời (đóng → conv:new): socket có thể vẫn ở room cũ, bỏ qua event của nó
+  const leftConvIdsRef = useRef<Set<string>>(new Set())
+  // Đang chạy conv:new → conversation:join; các lần gửi trong lúc đó chờ chung một kết quả
+  const switchWaitersRef = useRef<Array<(ok: boolean, error?: string) => void> | null>(null)
+  // "Phiên mới" chỉ hiện một lần sau mỗi lần đóng (gửi lại khi lỗi không thêm divider nữa)
+  const newSessionDividerShownRef = useRef(false)
   const config = useChatStore((s) => s.config)
   const setPhase = useChatStore((s) => s.setPhase)
   const addMessage = useChatStore((s) => s.addMessage)
@@ -280,6 +401,44 @@ export function useSocket() {
     }
   }, [config, addMessage])
 
+  // Doc "conversation:closed" mục 5: lịch sử chỉ xem, cuối có "Phiên đã kết thúc lúc …",
+  // ô nhập vẫn mở; tin kế tiếp sẽ mở hội thoại mới (xem sendMessage).
+  const markConversationClosed = useCallback((info: ConversationClosedInfo) => {
+    const state = useChatStore.getState()
+    if (!info.conversationId || state.conversationId !== info.conversationId) return
+    if (state.conversationClosed?.conversationId === info.conversationId) return // đã xử lý
+
+    if (typingTimeout) clearTimeout(typingTimeout)
+    chunksRef.current.clear()
+    newSessionDividerShownRef.current = false
+    useChatStore.setState((s) => {
+      // Divider "Cuộc trò chuyện mới" + greeting ở cuối là để tiếp tục hội thoại này —
+      // vô nghĩa khi nó đã đóng, divider "Phiên đã kết thúc" thay chỗ của chúng.
+      const messages = [...s.messages]
+      while (messages.length && isTailDecoration(messages[messages.length - 1])) messages.pop()
+      messages.push(makeDivider(closedDividerLabel(info.closedAt), 'closed'))
+      return {
+        messages,
+        conversationClosed: info,
+        isWaitingForAgent: false,
+        isAgentTyping: false,
+        streaming: null,
+      }
+    })
+    config?.onConversationClosed?.(info)
+  }, [config])
+
+  // Mở lại app vào hội thoại đã đóng (doc mục 7.4): đọc status từ conv:list.
+  // Server cũ không có `status` (hoặc không trả ack) → không làm gì.
+  const checkClosedViaList = useCallback((socket: Socket, convId: string) => {
+    requestConv(socket, 'conv:list', {}, 'CONV_LIST_FAILED', (res) => convListItems(res as ConvListResponse))
+      .then((items) => {
+        const item = items.find((c) => (c.conversationId ?? c.id ?? c._id) === convId)
+        if (item?.status !== 'closed') return
+        markConversationClosed({ conversationId: convId, closedAt: item.closedAt ?? null })
+      }, () => { /* server cũ / không có agent → bỏ qua */ })
+  }, [markConversationClosed])
+
   const loadHistory = useCallback((socket: Socket, convId: string, before?: string) => {
     const allowedTypes = config?.visibleMessageTypes ?? ['message']
     const hiddenPatterns = config?.hiddenPatterns ?? []
@@ -328,6 +487,25 @@ export function useSocket() {
         return
       }
 
+      // Hội thoại đã đóng (conv:list về trước history): chỉ hiện lịch sử, divider đã có
+      if (useChatStore.getState().conversationClosed?.conversationId === convId) {
+        if (messages.length) prependMessages(messages)
+        return
+      }
+
+      // Tin notice tự đóng là tin cuối → hội thoại đã đóng, kể cả khi server chưa có conv:list.status
+      const last = rawMessages[rawMessages.length - 1]
+      const closing = last?.metadata?.conversationClosed
+      if (closing) {
+        if (messages.length) prependMessages(messages)
+        markConversationClosed({
+          conversationId: convId,
+          closedAt: closing.closedAt ?? last.createdAt ?? null,
+          closedReason: closing.closedReason,
+        })
+        return
+      }
+
       if (messages.length) {
         prependMessages(messages)
         // Divider separates history from new session
@@ -346,7 +524,7 @@ export function useSocket() {
         injectGreeting()
       }
     })
-  }, [config, prependMessages, injectGreeting, addMessage, setHistoryHasMore, setLoadingHistory])
+  }, [config, prependMessages, injectGreeting, addMessage, setHistoryHasMore, setLoadingHistory, markConversationClosed])
 
   const loadOlderMessages = useCallback(() => {
     const socket = socketRef.current
@@ -480,6 +658,8 @@ export function useSocket() {
             config.onConversationJoined?.(res.conversationId)
             loadHistory(socket, res.conversationId)
           }
+          // Mỗi lần join (kể cả reconnect): hội thoại có thể đã đóng lúc mất kết nối
+          checkClosedViaList(socket, res.conversationId)
         } else if (res && !res.success && res.error) {
           reportError(res.error, undefined, { stage: 'conversation-join', errorType: 'JoinError' })
         }
@@ -576,6 +756,11 @@ export function useSocket() {
     socket.on('presence:update', (payload: PresenceUpdatePayload) => {
       config.onPresenceUpdate?.(payload)
 
+      // Đang chuyển sang hội thoại mới (conv:new) / presence của hội thoại đã rời:
+      // không được resetSession() — kết quả conv:new tự set conversationId.
+      if (switchWaitersRef.current) return
+      if (payload.conversationId && leftConvIdsRef.current.has(payload.conversationId)) return
+
       if (payload.type === 'anonymous' && payload.conversationId) {
         // Ghi nhớ userId của chính mình từ event đầu tiên
         if (!myUserIdRef.current && payload.userId) {
@@ -587,7 +772,10 @@ export function useSocket() {
         const currentConvId = useChatStore.getState().conversationId
 
         // Same conversation reconnect — skip load history, messages already in store
-        if (currentConvId === payload.conversationId) return
+        if (currentConvId === payload.conversationId) {
+          checkClosedViaList(socket, payload.conversationId)
+          return
+        }
 
         // Different or no conversationId: new session assigned by server.
         // Clear messages and seenIds so history isn't duplicated across sessions.
@@ -602,7 +790,19 @@ export function useSocket() {
         telemetry.setConversationId(payload.conversationId)
         config.onConversationJoined?.(payload.conversationId)
         loadHistory(socket, payload.conversationId)
+        checkClosedViaList(socket, payload.conversationId)
       }
+    })
+
+    // AIWM tự đóng hội thoại do không hoạt động (AIWM 1.139.0+). Tin notice đi kèm đến
+    // trước qua message:new và hiển thị như mọi notice. closedReason lạ → vẫn coi là đã đóng.
+    socket.on('conversation:closed', (payload: ConversationClosedPayload) => {
+      if (!payload?.conversationId) return
+      markConversationClosed({
+        conversationId: payload.conversationId,
+        closedAt: payload.closedAt ?? null,
+        closedReason: payload.closedReason,
+      })
     })
 
     socket.on('message:error', (payload: { error: string }) => {
@@ -668,6 +868,9 @@ export function useSocket() {
       // Debug: emit raw payload for inspection
       config.onRawMessage?.(raw as unknown as Record<string, unknown>)
       const payload = withResolvedRole(raw)
+
+      // Tin của hội thoại đã rời (socket có thể vẫn ở room cũ) không thuộc màn hình hiện tại
+      if (payload.conversationId && leftConvIdsRef.current.has(payload.conversationId)) return
 
       // 1. Dedup
       const id = payload._id ?? payload.messageId
@@ -749,7 +952,7 @@ export function useSocket() {
         // Không match + không có target → echo từ tab khác hoặc server event không liên quan, bỏ qua
       }
     })
-  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError, reconcileMessage])
+  }, [config, setPhase, addMessage, prependMessages, confirmMessage, setAgentTyping, setConversationId, loadHistory, setWaitingForAgent, setStreaming, reportError, reconcileMessage, markConversationClosed, checkClosedViaList])
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true
@@ -757,12 +960,44 @@ export function useSocket() {
     greetingInjectedRef.current = false
     myUserIdRef.current = null
     chunksRef.current.clear()
+    switchWaitersRef.current = null
     socketRef.current?.disconnect()        // fires 'disconnect' event — flag=true guards the handler
     socketRef.current?.removeAllListeners()
     socketRef.current = null
     useChatStore.getState().setWaitingForAgent(false)
     useChatStore.getState().setStreaming(null)
   }, [])
+
+  // Hội thoại hiện tại đã đóng → conv:new. Server tạo hội thoại, TỰ chuyển room và
+  // client.data.conversationId (message:send không mang conversationId), rồi trả kết quả.
+  // Chỉ khi có id mới mới coi là đã chuyển: KHÔNG được gửi vào id cũ (BE phương án a vẫn nhận).
+  const startNewConversation = useCallback((socket: Socket, done: (ok: boolean, error?: string) => void) => {
+    if (switchWaitersRef.current) {
+      switchWaitersRef.current.push(done)
+      return
+    }
+    const waiters: Array<(ok: boolean, error?: string) => void> = [done]
+    switchWaitersRef.current = waiters
+    const oldConvId = useChatStore.getState().conversationId
+
+    const finish = (ok: boolean, error?: string) => {
+      if (switchWaitersRef.current !== waiters) return // disconnect() đã huỷ
+      switchWaitersRef.current = null
+      waiters.forEach((w) => w(ok, error))
+    }
+
+    requestConv(socket, 'conv:new', {}, 'CONV_NEW_FAILED', (res) => {
+      const id = extractConversationId(res as ConvNewAck)
+      return id && id !== oldConvId ? id : null
+    }).then((newId) => {
+      if (oldConvId) leftConvIdsRef.current.add(oldConvId)
+      historyCursorRef.current = null
+      useChatStore.setState({ conversationId: newId, conversationClosed: null, historyHasMore: false })
+      telemetry.setConversationId(newId)
+      config?.onConversationJoined?.(newId)
+      finish(true)
+    }, (err: Error) => finish(false, err.message))
+  }, [config])
 
   const sendMessage = useCallback((payload: SendMessagePayload) => {
     const socket = socketRef.current
@@ -771,6 +1006,12 @@ export function useSocket() {
     setWaitingForAgent(true)
 
     const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    const closed = useChatStore.getState().conversationClosed
+
+    if (closed && !newSessionDividerShownRef.current) {
+      newSessionDividerShownRef.current = true
+      addMessage(makeDivider('Phiên mới', 'new'))
+    }
 
     addMessage({
       localId,
@@ -783,6 +1024,24 @@ export function useSocket() {
       timestamp: new Date().toISOString(),
     })
 
+    if (!closed) {
+      emitSend(socket, localId, payload)
+      return
+    }
+
+    startNewConversation(socket, (ok, error) => {
+      if (ok && socketRef.current === socket && socket.connected) {
+        emitSend(socket, localId, payload)
+        return
+      }
+      failMessage(localId)
+      setWaitingForAgent(false)
+      reportError(`Không mở được phiên mới: ${error ?? 'mất kết nối'}`, undefined, { stage: 'conversation-new', errorType: 'NewConversationError' })
+    })
+  // emitSend (plain function below) reads refs/store + these values
+  }, [addMessage, confirmMessage, failMessage, setWaitingForAgent, config, reportError, startNewConversation])
+
+  function emitSend(socket: Socket, localId: string, payload: SendMessagePayload) {
     let acked = false
 
     // KHÔNG gửi conversationId trong DTO — server sẽ dùng client.data.conversationId
@@ -842,7 +1101,7 @@ export function useSocket() {
       // Safety valve: không khóa input vô hạn nếu agent không bao giờ trả lời
       useChatStore.getState().setWaitingForAgent(false)
     }, 10_000)
-  }, [addMessage, confirmMessage, failMessage, setWaitingForAgent, config, reportError])
+  }
 
   // Typing indicator của user — doc CWS: một event duy nhất với cờ isTyping
   const sendTyping = useCallback((isTyping: boolean) => {

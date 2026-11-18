@@ -212,9 +212,34 @@ export interface SDKConfig {
   onGuardrailBlock?: (info: { error?: string }) => void
   /** Called when server redacts PII in the user's message before echo */
   onPiiRedacted?: (info: { originalContent: string; redactedContent: string }) => void
+  /**
+   * Called when the current conversation is (or turns out to be) closed — on the
+   * `conversation:closed` event, or when the widget opens a conversation already closed.
+   * The input stays open: the next message starts a new conversation (`conv:new`).
+   */
+  onConversationClosed?: (info: ConversationClosedInfo) => void
 }
 
 // ─── Socket.IO payloads ──────────────────────────────────────────────────────
+
+/**
+ * `conversation:closed` (AIWM 1.139.0+). Sent to the conversation room when AIWM
+ * auto-closes an idle conversation. Exactly these 3 fields.
+ */
+export interface ConversationClosedPayload {
+  conversationId: string
+  /** ISO-8601 UTC */
+  closedAt: string
+  /** `"idle"` today; unknown values must still be treated as "closed" */
+  closedReason: string
+}
+
+export interface ConversationClosedInfo {
+  conversationId: string
+  /** null when the server never recorded it (conversations closed before AIWM 1.139.0) */
+  closedAt: string | null
+  closedReason?: string
+}
 
 export interface PresenceUpdatePayload {
   type: 'agent' | 'user' | 'anonymous'
@@ -407,6 +432,8 @@ export interface MessageMetadata {
   guardrailNotice?: boolean
   /** SDK-injected: true when this user message was blocked by a guardrail */
   guardrailBlocked?: boolean
+  /** Server: set on the notice that announces an auto-close (AIWM 1.139.0+) */
+  conversationClosed?: { closedReason?: string; closedAt?: string }
 }
 
 export interface Message {
