@@ -10,6 +10,8 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-18
+
 ### Added
 - **Hội thoại bị AIWM tự đóng (`conversation:closed`, AIWM 1.139.0+)** — theo hợp đồng "conversation:closed" DRAFT 0.3, mục 5:
   - Nghe `conversation:closed { conversationId, closedAt, closedReason }`; `closedReason` lạ vẫn coi là đã đóng, lọc trùng theo `conversationId`.
@@ -20,6 +22,8 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
   - Bỏ qua `message:new` / `presence:update` của hội thoại đã rời (socket có thể vẫn ở room cũ).
   - Callback mới `onConversationClosed(info)`; export type `ConversationClosedPayload`, `ConversationClosedInfo`. `MessageMetadata.conversationClosed`.
 - Divider render `content` làm nhãn (rỗng → "Cuộc trò chuyện mới" như cũ).
+
+## [0.17.0] - 2026-09-29
 
 ### Changed
 - **Góp ý dislike theo AIWM `26.10.42`:** `reaction:toggle` gửi `comment` (tối đa 2000 ký tự) + `reasons` (mã nhãn, tối đa 5) thay cho `reason` — BE không nhận `reason`, nên lý do nhập ở `0.16.1` không được lưu. Form chọn nhãn + góp ý thay cho ô nhập tự do (phải chọn ít nhất 1 nhãn hoặc nhập góp ý). Vẫn giữ luồng cũ: bấm 👎 chỉ mở form, bấm **Gửi** mới gửi dislike kèm góp ý trong một lần gọi, **Hủy** không gửi gì. Mới: khi đang dislike có nút 💬 mở lại form (điền sẵn `userFeedback` từ history/ACK) để sửa góp ý mà không gỡ dislike.
