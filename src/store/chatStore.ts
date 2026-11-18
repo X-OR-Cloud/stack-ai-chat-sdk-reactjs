@@ -3,6 +3,7 @@ import type {
   SDKConfig,
   ChatPhase,
   Message,
+  ConversationClosedInfo,
 } from '../types'
 
 interface ChatState {
@@ -26,6 +27,12 @@ interface ChatState {
   isLoadingHistory: boolean
 
   votingUnavailable: boolean
+
+  /**
+   * Set when the current conversation is closed. History stays read-only; the next
+   * message the user sends starts a new conversation instead of going to the old id.
+   */
+  conversationClosed: ConversationClosedInfo | null
 
   // Reference quote injected by host webapp
   reference: string | null
@@ -55,6 +62,7 @@ interface ChatState {
   setHistoryHasMore: (hasMore: boolean) => void
   setLoadingHistory: (loading: boolean) => void
   setVotingUnavailable: (v: boolean) => void
+  setConversationClosed: (info: ConversationClosedInfo | null) => void
   reset: () => void
   resetSession: () => void
 }
@@ -72,6 +80,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   historyHasMore: false,
   isLoadingHistory: false,
   votingUnavailable: false,
+  conversationClosed: null,
   reference: null,
   userFields: {},
 
@@ -159,6 +168,8 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setVotingUnavailable: (v) => set({ votingUnavailable: v }),
 
+  setConversationClosed: (info) => set({ conversationClosed: info }),
+
   resetSession: () =>
     set({
       conversationId: null,
@@ -168,6 +179,7 @@ export const useChatStore = create<ChatState>()((set) => ({
       streaming: null,
       historyHasMore: false,
       isLoadingHistory: false,
+      conversationClosed: null,
       reference: null,
     }),
 
@@ -184,6 +196,7 @@ export const useChatStore = create<ChatState>()((set) => ({
       historyHasMore: false,
       isLoadingHistory: false,
       votingUnavailable: false,
+      conversationClosed: null,
       reference: null,
       userFields: {},
     }),

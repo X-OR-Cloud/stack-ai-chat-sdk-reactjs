@@ -10,6 +10,17 @@ Tất cả thay đổi đáng chú ý của `@xorcloud/stack-ai-chat-sdk` đư�
 
 ## [Unreleased]
 
+### Added
+- **Hội thoại bị AIWM tự đóng (`conversation:closed`, AIWM 1.139.0+)** — theo hợp đồng "conversation:closed" DRAFT 0.3, mục 5:
+  - Nghe `conversation:closed { conversationId, closedAt, closedReason }`; `closedReason` lạ vẫn coi là đã đóng, lọc trùng theo `conversationId`.
+  - Mở widget vào hội thoại đã đóng: nhận biết qua `conv:list` (`status: 'closed'`, `closedAt` — AIWM 1.139.0-rc2) sau mỗi lần join/reconnect, hoặc qua tin notice cuối lịch sử có `metadata.conversationClosed` (server chưa có `status`).
+  - Lịch sử giữ nguyên (chỉ xem), cuối có dòng **"Phiên đã kết thúc lúc HH:mm dd/MM/yyyy"** (không có `closedAt` → "Phiên đã kết thúc"); bỏ divider "Cuộc trò chuyện mới" + greeting ở đuôi.
+  - Ô nhập vẫn mở. Tin đầu tiên sau đó: hiện dòng **"Phiên mới"**, gọi `conv:new` (server tự tạo hội thoại + chuyển room), có id mới rồi mới `message:send`. **Không bao giờ gửi vào id cũ** (BE phương án a vẫn nhận tin vào hội thoại đã đóng). `conv:new` lỗi (`success: false` / `conv:error`) hoặc quá 10s → tin bị đánh dấu lỗi, `onError` mang lỗi của server, lần gửi sau thử lại.
+  - `conv:new` / `conv:list` nhận kết quả qua **cả ack lẫn event cùng tên** (gateway có bản chỉ ack `{ success: true }` và gửi danh sách qua event).
+  - Bỏ qua `message:new` / `presence:update` của hội thoại đã rời (socket có thể vẫn ở room cũ).
+  - Callback mới `onConversationClosed(info)`; export type `ConversationClosedPayload`, `ConversationClosedInfo`. `MessageMetadata.conversationClosed`.
+- Divider render `content` làm nhãn (rỗng → "Cuộc trò chuyện mới" như cũ).
+
 ### Changed
 - **Góp ý dislike theo AIWM `26.10.42`:** `reaction:toggle` gửi `comment` (tối đa 2000 ký tự) + `reasons` (mã nhãn, tối đa 5) thay cho `reason` — BE không nhận `reason`, nên lý do nhập ở `0.16.1` không được lưu. Form chọn nhãn + góp ý thay cho ô nhập tự do (phải chọn ít nhất 1 nhãn hoặc nhập góp ý). Vẫn giữ luồng cũ: bấm 👎 chỉ mở form, bấm **Gửi** mới gửi dislike kèm góp ý trong một lần gọi, **Hủy** không gửi gì. Mới: khi đang dislike có nút 💬 mở lại form (điền sẵn `userFeedback` từ history/ACK) để sửa góp ý mà không gỡ dislike.
 - Bộ nhãn lấy từ `GET {apiUrl}/reactions/reasons?type=dislike`; không có `apiUrl` hoặc request lỗi (token anonymous) → dùng bản sao dựng sẵn trong SDK.

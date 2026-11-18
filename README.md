@@ -256,6 +256,7 @@ Unmount the widget and clean up all resources.
 | `onVote` | `(event: VoteEvent) => void` | — | Called once the server confirms a vote |
 | `onGuardrailBlock` | `(info: { error?: string }) => void` | — | Called when guardrail rejects a user message |
 | `onPiiRedacted` | `(info: { originalContent: string; redactedContent: string }) => void` | — | Called when server redacts PII from a user message |
+| `onConversationClosed` | `(info: { conversationId: string; closedAt: string \| null; closedReason?: string }) => void` | — | Called when the current conversation is closed (`conversation:closed`, AIWM 1.139.0+) or the widget opens one already closed. History stays read-only; the user's next message starts a new conversation (`conv:new`) |
 
 ---
 

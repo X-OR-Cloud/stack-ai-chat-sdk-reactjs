@@ -105,11 +105,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     return cfg?.showReferences === false ? 'none' : 'full'
   })
 
-  // divider — separates history from new session
+  // divider — separates history from new session ("Phiên đã kết thúc…", "Phiên mới"…)
   if (message.type === 'divider') {
     return (
       <div className="session-divider" role="separator">
-        <span className="session-divider__label">Cuộc trò chuyện mới</span>
+        <span className="session-divider__label">{message.content || 'Cuộc trò chuyện mới'}</span>
       </div>
     )
   }

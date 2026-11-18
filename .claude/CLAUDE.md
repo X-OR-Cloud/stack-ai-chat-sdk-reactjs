@@ -113,6 +113,7 @@ demo/
 | `message:new` | Dedup → filter type/pattern (`system`/`notice`/`error` LUÔN hiển thị) → `addMessage` → `onMessage`. `isFinal: true` → unlock input + replace streaming bubble |
 | `message:sent` | Fallback confirm cho server không ack (confirm chính qua ack của `message:send`) |
 | `agent:typing` | Set `isAgentTyping = true`, auto-clear sau 10s; bỏ qua khi đang streaming |
+| `conversation:closed` | AIWM tự đóng hội thoại (1.139.0+): `markConversationClosed` → divider "Phiên đã kết thúc lúc …", `store.conversationClosed` set; ô nhập vẫn mở |
 
 **Events gửi lên server:**
 | Event | Khi nào |
@@ -122,6 +123,8 @@ demo/
 | `conversation:history` | Sau join — 50 message, `includeInternal` khi `visibleMessageTypes` chứa thinking/tool_*; phân trang bằng cursor `before` (nút "Xem tin nhắn cũ hơn") |
 | `message:send` | Khi user gửi tin — có ack callback: confirm/fail optimistic message, `guardrailBlocked` → gỡ message khỏi list |
 | `message:typing` | User gõ trong input (debounce 2s, một event duy nhất với cờ `isTyping`) |
+| `conv:list` | Sau mỗi lần join/reconnect — đọc `status`/`closedAt` để biết hội thoại hiện tại đã đóng chưa |
+| `conv:new` | Tin đầu tiên user gửi khi `store.conversationClosed` != null — server tự chuyển room; **không gửi vào id cũ**; hiện divider "Phiên mới". Kết quả `conv:*` về qua ack HOẶC event cùng tên, lỗi qua `conv:error` (`requestConv()`) |
 
 **Không gửi `conversationId` trong `message:send` payload** — server tự resolve từ `client.data`.
 
